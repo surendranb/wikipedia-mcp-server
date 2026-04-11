@@ -1,0 +1,249 @@
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import dataclass
+from html import unescape
+from html.parser import HTMLParser
+from typing import Any, Dict, List, Optional, Sequence
+from urllib.parse import quote
+
+import requests
+
+from mcp.server.fastmcp import FastMCP
+
+
+class _HTMLTextExtractor(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self._parts: List[str] = []
+        self._skip_depth = 0
+
+    def handle_starttag(self, tag: str, attrs: List[tuple[str, Optional[str]]]) -> None:
+        if tag in {"script", "style"}:
+            self._skip_depth += 1
+            return
+        if self._skip_depth == 0 and tag in {"p", "section", "div", "li", "ul", "ol", "br", "h1", "h2", "h3", "h4"}:
+            self._parts.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in {"script", "style"} and self._skip_depth:
+            self._skip_depth -= 1
+            return
+        if self._skip_depth == 0 and tag in {"p", "section", "div", "li", "ul", "ol", "br", "h1", "h2", "h3", "h4"}:
+            self._parts.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if self._skip_depth == 0 and data.strip():
+            self._parts.append(data)
+
+    def text(self) -> str:
+        raw = unescape(" ".join(self._parts))
+        compact = re.sub(r"[ \t]+", " ", raw)
+        compact = re.sub(r" *\n *", "\n", compact)
+        return re.sub(r"\n\s*\n+", "\n\n", compact).strip()
+
+
+def strip_html(html: str) -> str:
+    parser = _HTMLTextExtractor()
+    parser.feed(html)
+    return parser.text()
+
+
+def title_key(title: str) -> str:
+    return quote(title.replace(" ", "_"), safe="():'%")
+
+
+@dataclass
+class WikipediaClient:
+    timeout_seconds: float = 20.0
+    user_agent: str = "wikipedia-mcp-server/0.1"
+
+    REST_BASES = (
+        "https://en.wikipedia.org/api/rest_v1",
+        "https://en.wikipedia.org/w/rest.php/v1",
+    )
+    ACTION_API = "https://en.wikipedia.org/w/api.php"
+
+    def __post_init__(self) -> None:
+        self.session = requests.Session()
+        self.session.headers.update({"User-Agent": self.user_agent})
+
+    def _get_json(self, url: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        response = self.session.get(url, params=params, timeout=self.timeout_seconds)
+        response.raise_for_status()
+        return response.json()
+
+    def _get_text(self, url: str, params: Optional[Dict[str, Any]] = None) -> str:
+        response = self.session.get(url, params=params, timeout=self.timeout_seconds)
+        response.raise_for_status()
+        return response.text
+
+    def search_articles(self, query: str, limit: int = 5) -> List[Dict[str, str]]:
+        payload = self._get_json(
+            self.ACTION_API,
+            params={
+                "action": "query",
+                "list": "search",
+                "srsearch": query,
+                "format": "json",
+                "utf8": 1,
+                "srlimit": max(1, min(limit, 10)),
+                "srprop": "snippet",
+            },
+        )
+        results: List[Dict[str, str]] = []
+        for item in payload.get("query", {}).get("search", []):
+            results.append(
+                {
+                    "title": item["title"],
+                    "snippet": re.sub(r"<.*?>", "", item.get("snippet", "")).strip(),
+                }
+            )
+        return results
+
+    def get_summary(self, title: str) -> Dict[str, Any]:
+        key = title_key(title)
+        last_error: Optional[Exception] = None
+        for base in self.REST_BASES:
+            for url in (f"{base}/page/summary/{key}", f"{base}/page/{key}/summary"):
+                try:
+                    payload = self._get_json(url)
+                    return {
+                        "title": payload.get("title", title),
+                        "description": payload.get("description", ""),
+                        "extract": payload.get("extract", ""),
+                        "content_urls": payload.get("content_urls", {}),
+                    }
+                except Exception as exc:
+                    last_error = exc
+        raise RuntimeError(f"Unable to fetch summary for {title!r}: {last_error}")
+
+    def get_summaries(self, titles: Sequence[str]) -> List[Dict[str, Any]]:
+        return [self.get_summary(title) for title in titles]
+
+    def get_toc(self, title: str) -> List[Dict[str, str]]:
+        payload = self._get_json(
+            self.ACTION_API,
+            params={
+                "action": "parse",
+                "page": title,
+                "prop": "sections",
+                "format": "json",
+            },
+        )
+        raw_sections = payload.get("parse", {}).get("sections", [])
+        sections = [{"index": "0", "line": "Introduction", "anchor": "Introduction"}]
+        for section in raw_sections:
+            sections.append(
+                {
+                    "index": str(section.get("index", "")),
+                    "line": str(section.get("line", "")).strip(),
+                    "anchor": str(section.get("anchor", "")).strip(),
+                }
+            )
+        return sections
+
+    def get_section(self, title: str, section: str) -> Dict[str, Any]:
+        toc = self.get_toc(title)
+        section_index = self._resolve_section_index(toc, section)
+        params: Dict[str, Any] = {
+            "action": "parse",
+            "page": title,
+            "prop": "text",
+            "format": "json",
+            "disableeditsection": 1,
+            "disabletoc": 1,
+        }
+        if section_index != "0":
+            params["section"] = section_index
+        payload = self._get_json(self.ACTION_API, params=params)
+        html = payload.get("parse", {}).get("text", {}).get("*", "")
+        return {
+            "title": title,
+            "section": self._resolve_section_line(toc, section_index),
+            "section_index": section_index,
+            "text": strip_html(html),
+        }
+
+    def get_page(self, title: str) -> Dict[str, Any]:
+        key = title_key(title)
+        last_error: Optional[Exception] = None
+        for base in self.REST_BASES:
+            for url in (f"{base}/page/html/{key}", f"{base}/page/{key}/html"):
+                try:
+                    html = self._get_text(url)
+                    return {"title": title, "text": strip_html(html)}
+                except Exception as exc:
+                    last_error = exc
+
+        try:
+            payload = self._get_json(
+                self.ACTION_API,
+                params={"action": "parse", "page": title, "prop": "text", "format": "json"},
+            )
+            html = payload.get("parse", {}).get("text", {}).get("*", "")
+            return {"title": title, "text": strip_html(html)}
+        except Exception as exc:
+            last_error = exc
+
+        raise RuntimeError(f"Unable to fetch page {title!r}: {last_error}")
+
+    @staticmethod
+    def _resolve_section_index(toc: Sequence[Dict[str, str]], section: str) -> str:
+        normalized = section.strip().lower()
+        for item in toc:
+            if item["index"] == section:
+                return item["index"]
+            if item["line"].strip().lower() == normalized:
+                return item["index"]
+        raise ValueError(f"Section {section!r} was not found")
+
+    @staticmethod
+    def _resolve_section_line(toc: Sequence[Dict[str, str]], index: str) -> str:
+        for item in toc:
+            if item["index"] == index:
+                return item["line"]
+        return index
+
+
+client = WikipediaClient()
+mcp = FastMCP("wikipedia-mcp-server")
+
+
+@mcp.tool()
+def search_articles(query: str, limit: int = 5) -> str:
+    """Search English Wikipedia and return a compact list of candidate pages."""
+    return json.dumps(client.search_articles(query, limit=limit), ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+def get_summaries(titles: List[str]) -> str:
+    """Fetch compact summaries for one or more Wikipedia page titles."""
+    return json.dumps(client.get_summaries(titles), ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+def get_toc(title: str) -> str:
+    """Return a page's table of contents as section index, title, and anchor."""
+    return json.dumps(client.get_toc(title), ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+def get_section(title: str, section: str) -> str:
+    """Fetch one section by section index or exact section title."""
+    return json.dumps(client.get_section(title, section), ensure_ascii=False, indent=2)
+
+
+@mcp.tool()
+def get_page(title: str) -> str:
+    """Fetch a full Wikipedia page as plain text."""
+    return json.dumps(client.get_page(title), ensure_ascii=False, indent=2)
+
+
+def main() -> None:
+    mcp.run()
+
+
+if __name__ == "__main__":
+    main()

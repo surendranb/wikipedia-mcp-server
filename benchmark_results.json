@@ -1,0 +1,432 @@
+{
+  "tokenizer": "o200k_base",
+  "results": [
+    {
+      "slug": "photosynthesis_products",
+      "name": "Narrow question, one relevant section",
+      "query": "What molecules are produced during the light-dependent reactions of photosynthesis?",
+      "rationale": "A naive strategy often fetches several whole candidate pages before realizing one section on Photosynthesis is sufficient.",
+      "expected_terms": [
+        "ATP",
+        "NADPH",
+        "oxygen"
+      ],
+      "direct": {
+        "strategy": "Direct Wikipedia API, naive top-k full-page retrieval",
+        "candidate_titles": [
+          "Photosynthesis",
+          "Calvin cycle",
+          "Anoxygenic photosynthesis"
+        ],
+        "deep_fetches": [
+          "Photosynthesis",
+          "Calvin cycle",
+          "Anoxygenic photosynthesis"
+        ],
+        "stats": [
+          {
+            "name": "search_candidates",
+            "tokens": 242,
+            "chars": 1092
+          },
+          {
+            "name": "full_page:Photosynthesis",
+            "tokens": 26845,
+            "chars": 99605
+          },
+          {
+            "name": "full_page:Calvin cycle",
+            "tokens": 6456,
+            "chars": 24355
+          },
+          {
+            "name": "full_page:Anoxygenic photosynthesis",
+            "tokens": 4481,
+            "chars": 16063
+          }
+        ],
+        "total_tokens": 38024,
+        "total_chars": 141115,
+        "pages_fetched": 3,
+        "sections_fetched": 0,
+        "contains_expected_terms": true
+      },
+      "mcp": {
+        "strategy": "Wikipedia MCP progressive retrieval",
+        "candidate_titles": [
+          "Photosynthesis",
+          "Anoxygenic photosynthesis",
+          "Calvin cycle"
+        ],
+        "deep_fetches": [
+          {
+            "title": "Photosynthesis",
+            "mode": "section",
+            "target": "Light-dependent reactions"
+          }
+        ],
+        "stats": [
+          {
+            "name": "search_articles",
+            "tokens": 239,
+            "chars": 1084
+          },
+          {
+            "name": "get_summaries",
+            "tokens": 1046,
+            "chars": 4721
+          },
+          {
+            "name": "get_toc:Photosynthesis",
+            "tokens": 998,
+            "chars": 3240
+          },
+          {
+            "name": "get_section:Photosynthesis:Light-dependent reactions",
+            "tokens": 1439,
+            "chars": 6433
+          }
+        ],
+        "total_tokens": 3722,
+        "total_chars": 15478,
+        "pages_fetched": 0,
+        "sections_fetched": 1,
+        "contains_expected_terms": true
+      },
+      "comparison": {
+        "token_delta": 34302,
+        "token_reduction_pct": 90.21144540290344,
+        "direct_to_mcp_ratio": 10.216012896292316
+      }
+    },
+    {
+      "slug": "photosynthesis_vs_respiration",
+      "name": "Two relevant pages, compare without extra full-page fetches",
+      "query": "Compare photosynthesis and cellular respiration.",
+      "rationale": "The answer draws from two pages, but a naive top-k full-page strategy also pulls an extra third page that is not needed.",
+      "expected_terms": [
+        "photosynthesis",
+        "cellular respiration",
+        "ATP"
+      ],
+      "direct": {
+        "strategy": "Direct Wikipedia API, naive top-k full-page retrieval",
+        "candidate_titles": [
+          "Photosynthesis",
+          "Cellular respiration",
+          "Anaerobic respiration"
+        ],
+        "deep_fetches": [
+          "Photosynthesis",
+          "Cellular respiration",
+          "Anaerobic respiration"
+        ],
+        "stats": [
+          {
+            "name": "search_candidates",
+            "tokens": 246,
+            "chars": 1090
+          },
+          {
+            "name": "full_page:Photosynthesis",
+            "tokens": 26845,
+            "chars": 99605
+          },
+          {
+            "name": "full_page:Cellular respiration",
+            "tokens": 7886,
+            "chars": 29735
+          },
+          {
+            "name": "full_page:Anaerobic respiration",
+            "tokens": 5557,
+            "chars": 19197
+          }
+        ],
+        "total_tokens": 40534,
+        "total_chars": 149627,
+        "pages_fetched": 3,
+        "sections_fetched": 0,
+        "contains_expected_terms": true
+      },
+      "mcp": {
+        "strategy": "Wikipedia MCP progressive retrieval",
+        "candidate_titles": [
+          "Photosynthesis",
+          "Cellular respiration",
+          "Anaerobic respiration"
+        ],
+        "deep_fetches": [
+          {
+            "title": "Photosynthesis",
+            "mode": "section",
+            "target": "Introduction"
+          },
+          {
+            "title": "Cellular respiration",
+            "mode": "section",
+            "target": "Introduction"
+          }
+        ],
+        "stats": [
+          {
+            "name": "search_articles",
+            "tokens": 253,
+            "chars": 1078
+          },
+          {
+            "name": "get_summaries",
+            "tokens": 901,
+            "chars": 4070
+          },
+          {
+            "name": "get_toc:Photosynthesis",
+            "tokens": 998,
+            "chars": 3240
+          },
+          {
+            "name": "get_toc:Cellular respiration",
+            "tokens": 373,
+            "chars": 1150
+          },
+          {
+            "name": "get_section:Photosynthesis:Introduction",
+            "tokens": 26709,
+            "chars": 99356
+          },
+          {
+            "name": "get_section:Cellular respiration:Introduction",
+            "tokens": 7847,
+            "chars": 29680
+          }
+        ],
+        "total_tokens": 37081,
+        "total_chars": 138574,
+        "pages_fetched": 0,
+        "sections_fetched": 2,
+        "contains_expected_terms": true
+      },
+      "comparison": {
+        "token_delta": 3453,
+        "token_reduction_pct": 8.518774362263779,
+        "direct_to_mcp_ratio": 1.0931204660068499
+      }
+    },
+    {
+      "slug": "general_relativity",
+      "name": "Broad question on one page, but only two sections are needed",
+      "query": "Explain the development and implications of general relativity.",
+      "rationale": "The top search results include nearby but unnecessary pages. Progressive retrieval can inspect candidates cheaply, stay on the right page, and fetch only the sections needed for development and implications.",
+      "expected_terms": [
+        "Einstein",
+        "Mercury",
+        "black holes"
+      ],
+      "direct": {
+        "strategy": "Direct Wikipedia API, naive top-k full-page retrieval",
+        "candidate_titles": [
+          "General relativity",
+          "Alternatives to general relativity",
+          "Linguistic relativity"
+        ],
+        "deep_fetches": [
+          "General relativity",
+          "Alternatives to general relativity",
+          "Linguistic relativity"
+        ],
+        "stats": [
+          {
+            "name": "search_candidates",
+            "tokens": 243,
+            "chars": 1113
+          },
+          {
+            "name": "full_page:General relativity",
+            "tokens": 49020,
+            "chars": 174054
+          },
+          {
+            "name": "full_page:Alternatives to general relativity",
+            "tokens": 34157,
+            "chars": 107636
+          },
+          {
+            "name": "full_page:Linguistic relativity",
+            "tokens": 22275,
+            "chars": 89907
+          }
+        ],
+        "total_tokens": 105695,
+        "total_chars": 372710,
+        "pages_fetched": 3,
+        "sections_fetched": 0,
+        "contains_expected_terms": true
+      },
+      "mcp": {
+        "strategy": "Wikipedia MCP progressive retrieval",
+        "candidate_titles": [
+          "General relativity",
+          "Alternatives to general relativity",
+          "Linguistic relativity"
+        ],
+        "deep_fetches": [
+          {
+            "title": "General relativity",
+            "mode": "section",
+            "target": "History"
+          },
+          {
+            "title": "General relativity",
+            "mode": "section",
+            "target": "Consequences of Einstein's theory"
+          }
+        ],
+        "stats": [
+          {
+            "name": "search_articles",
+            "tokens": 249,
+            "chars": 1125
+          },
+          {
+            "name": "get_summaries",
+            "tokens": 1011,
+            "chars": 4554
+          },
+          {
+            "name": "get_toc:General relativity",
+            "tokens": 1562,
+            "chars": 5322
+          },
+          {
+            "name": "get_section:General relativity:History",
+            "tokens": 2003,
+            "chars": 8688
+          },
+          {
+            "name": "get_section:General relativity:Consequences of Einstein's theory",
+            "tokens": 4708,
+            "chars": 18262
+          }
+        ],
+        "total_tokens": 9533,
+        "total_chars": 37951,
+        "pages_fetched": 0,
+        "sections_fetched": 2,
+        "contains_expected_terms": true
+      },
+      "comparison": {
+        "token_delta": 96162,
+        "token_reduction_pct": 90.98065187568002,
+        "direct_to_mcp_ratio": 11.087275778873387
+      }
+    },
+    {
+      "slug": "superconductivity",
+      "name": "One page, two narrow sections",
+      "query": "Which elements exhibit superconductivity and what are their critical temperatures?",
+      "rationale": "The answer requires material classes plus critical-temperature context, but not whole-page dumps for other candidate articles.",
+      "expected_terms": [
+        "mercury",
+        "lead",
+        "niobium"
+      ],
+      "direct": {
+        "strategy": "Direct Wikipedia API, naive top-k full-page retrieval",
+        "candidate_titles": [
+          "Superconductivity",
+          "Periodic table",
+          "Ceramic"
+        ],
+        "deep_fetches": [
+          "Superconductivity",
+          "Periodic table",
+          "Ceramic"
+        ],
+        "stats": [
+          {
+            "name": "search_candidates",
+            "tokens": 236,
+            "chars": 1060
+          },
+          {
+            "name": "full_page:Superconductivity",
+            "tokens": 16703,
+            "chars": 63491
+          },
+          {
+            "name": "full_page:Periodic table",
+            "tokens": 59959,
+            "chars": 207626
+          },
+          {
+            "name": "full_page:Ceramic",
+            "tokens": 10261,
+            "chars": 46073
+          }
+        ],
+        "total_tokens": 87159,
+        "total_chars": 318250,
+        "pages_fetched": 3,
+        "sections_fetched": 0,
+        "contains_expected_terms": true
+      },
+      "mcp": {
+        "strategy": "Wikipedia MCP progressive retrieval",
+        "candidate_titles": [
+          "Superconductivity",
+          "Periodic table",
+          "Ceramic"
+        ],
+        "deep_fetches": [
+          {
+            "title": "Superconductivity",
+            "mode": "section",
+            "target": "Material"
+          },
+          {
+            "title": "Superconductivity",
+            "mode": "section",
+            "target": "Critical temperature"
+          }
+        ],
+        "stats": [
+          {
+            "name": "search_articles",
+            "tokens": 239,
+            "chars": 1077
+          },
+          {
+            "name": "get_summaries",
+            "tokens": 839,
+            "chars": 3739
+          },
+          {
+            "name": "get_toc:Superconductivity",
+            "tokens": 694,
+            "chars": 2256
+          },
+          {
+            "name": "get_section:Superconductivity:Material",
+            "tokens": 516,
+            "chars": 1784
+          },
+          {
+            "name": "get_section:Superconductivity:Critical temperature",
+            "tokens": 319,
+            "chars": 1283
+          }
+        ],
+        "total_tokens": 2607,
+        "total_chars": 10139,
+        "pages_fetched": 0,
+        "sections_fetched": 2,
+        "contains_expected_terms": true
+      },
+      "comparison": {
+        "token_delta": 84552,
+        "token_reduction_pct": 97.0089147420232,
+        "direct_to_mcp_ratio": 33.432681242807824
+      }
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+[project]
+name = "wikipedia-mcp-server"
+version = "0.1.0"
+description = "Progressive-retrieval MCP server for Wikipedia"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "surendranb" }]
+keywords = ["mcp", "wikipedia", "llm", "retrieval", "rag"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+  "mcp>=1.9.0",
+  "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+benchmark = [
+  "tiktoken>=0.12.0",
+]
+publish = [
+  "build>=1.2.2",
+  "twine>=5.1.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/surendranb/wikipedia-mcp-server"
+Repository = "https://github.com/surendranb/wikipedia-mcp-server"
+Issues = "https://github.com/surendranb/wikipedia-mcp-server/issues"
+
+[project.scripts]
+wikipedia-mcp-server = "server:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
