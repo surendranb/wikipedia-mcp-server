@@ -47,7 +47,12 @@ In deterministic testing, this progressive strategy achieves up to **80% token r
 
 From PyPI:
 ```bash
-pip install wikipedia-mcp-server
+pip install wiki-mcp-server
+```
+
+Or run it directly via `npx` (if using the JS wrapper) or the python entry point:
+```bash
+python -m wiki_mcp_server
 ```
 
 For development:
