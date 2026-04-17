@@ -1,5 +1,5 @@
 [project]
-name = "wiki-mcp-server"
+name = "mcp-server-wikipedia"
 version = "0.1.0"
 description = "Progressive-retrieval MCP server for Wikipedia"
 readme = "README.md"

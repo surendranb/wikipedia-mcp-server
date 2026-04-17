@@ -1,6 +1,6 @@
-# Wikipedia MCP Server
+# mcp-server-wikipedia 📚
 
-[![PyPI version](https://img.shields.io/pypi/v/wikipedia-mcp-server.svg)](https://pypi.org/project/wikipedia-mcp-server/)
+[![PyPI version](https://img.shields.io/pypi/v/mcp-server-wikipedia.svg)](https://pypi.org/project/mcp-server-wikipedia/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI](https://github.com/surendranb/wikipedia-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/surendranb/wikipedia-mcp-server/actions)
 
@@ -47,12 +47,12 @@ In deterministic testing, this progressive strategy achieves up to **80% token r
 
 From PyPI:
 ```bash
-pip install wiki-mcp-server
+pip install mcp-server-wikipedia
 ```
 
 Or run it directly via `npx` (if using the JS wrapper) or the python entry point:
 ```bash
-python -m wiki_mcp_server
+python -m mcp_server_wikipedia
 ```
 
 For development:
