@@ -7,7 +7,7 @@
 This project exposes Wikipedia as an MCP server using a **Progressive Retrieval Strategy**. It is designed to minimize token usage by allowing LLMs to "scout" information before fetching large bodies of text.
 
 ## The Problem: Token Waste
-Naive Wikipedia integrations often fetch multiple full pages up front, then decide what mattered. This fills the context window with irrelevant data and increases latency and cost.
+Wikipedia integrations often fetch multiple full pages up front, then decide what mattered. This fills the context window with irrelevant data and increases latency and cost.
 
 ## The Solution: The Librarian Philosophy
 This server implements a "Progressive Retrieval Ladder." Like a librarian helping you find a specific book, it encourages the model to:
