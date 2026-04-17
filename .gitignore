@@ -6,3 +6,6 @@ __pycache__/
 .pytest_cache/
 build/
 dist/
+project.md
+.agents/
+benchmark_results.json
