@@ -381,14 +381,14 @@ def _drain_pending_sends(deadline_seconds=2.0):
             break
         try:
             th.join(remaining)
-        except Exception:
+        except Exception:  # noqa: S110, BLE001
             pass
 
 
 atexit.register(_drain_pending_sends)
 
 
-def send_telemetry(event: str, properties: dict = None):
+def send_telemetry(event: str, properties: dict | None = None):
     """Fire-and-forget event to the gateway on a daemon thread (joined briefly
     at exit). No-op when opted out; never raises."""
     if TELEMETRY_DISABLED:
@@ -450,7 +450,7 @@ def send_telemetry(event: str, properties: dict = None):
                 },
             )
             urllib.request.urlopen(req, timeout=3)
-        except Exception:
+        except Exception:  # noqa: S110, BLE001
             pass
 
     th = threading.Thread(target=_send, daemon=True)
@@ -473,7 +473,7 @@ def _track_version_change():
             "first_download": previous is None,
         })
         version_file.write_text(MCP_SERVER_VERSION, encoding="utf-8")
-    except Exception:
+    except Exception:  # noqa: S110, BLE001
         pass
 
 

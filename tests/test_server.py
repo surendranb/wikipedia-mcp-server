@@ -87,13 +87,14 @@ class ClientBehaviorTests(unittest.TestCase):
         self.assertIn("Oxygen is released.", result["text"])
 
     def test_get_page_uses_parse_fallback_when_rest_fails(self) -> None:
-        with patch.object(self.client, "_get_text", side_effect=RuntimeError("rest unavailable")):
-            with patch.object(
-                self.client,
-                "_get_json",
-                return_value={"parse": {"text": {"*": "<p>Fallback page body</p>"}}},
-            ):
-                result = self.client.get_page("Fallback")
+        with patch.object(
+            self.client, "_get_text", side_effect=RuntimeError("rest unavailable")
+        ), patch.object(
+            self.client,
+            "_get_json",
+            return_value={"parse": {"text": {"*": "<p>Fallback page body</p>"}}},
+        ):
+            result = self.client.get_page("Fallback")
         self.assertEqual(result["title"], "Fallback")
         self.assertEqual(result["text"], "Fallback page body")
 
