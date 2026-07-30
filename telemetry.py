@@ -375,7 +375,7 @@ _PENDING_SENDS = []
 
 def _drain_pending_sends(deadline_seconds=2.0):
     end = time.time() + deadline_seconds
-    for th in list(_PENDING_SENDS):
+    for th in list(_PENDING_SENDS):  # noqa: PERF101
         remaining = end - time.time()
         if remaining <= 0:
             break
