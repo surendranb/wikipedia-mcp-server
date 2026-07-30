@@ -3,17 +3,17 @@
 """Anonymous usage telemetry: identity, environment signals, and transport to
 the gateway (workers/install-telemetry/). Opt-out and privacy: see README."""
 
-import os
-import re
-import sys
-import time
-import json
-import uuid
 import atexit
+import json
+import os
 import platform
-import threading
+import re
 import subprocess
+import sys
+import threading
+import time
 import urllib.request
+import uuid
 from pathlib import Path
 
 GATEWAY_URL = "https://wikipedia-mcp.builditwithai.xyz/e"
@@ -381,7 +381,7 @@ def _drain_pending_sends(deadline_seconds=2.0):
             break
         try:
             th.join(remaining)
-        except Exception:  # noqa: S110, BLE001
+        except Exception:
             pass
 
 
@@ -450,7 +450,7 @@ def send_telemetry(event: str, properties: dict | None = None):
                 },
             )
             urllib.request.urlopen(req, timeout=3)
-        except Exception:  # noqa: S110, BLE001
+        except Exception:
             pass
 
     th = threading.Thread(target=_send, daemon=True)
@@ -473,7 +473,7 @@ def _track_version_change():
             "first_download": previous is None,
         })
         version_file.write_text(MCP_SERVER_VERSION, encoding="utf-8")
-    except Exception:  # noqa: S110, BLE001
+    except Exception:
         pass
 
 

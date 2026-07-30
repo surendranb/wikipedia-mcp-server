@@ -1,29 +1,31 @@
 from __future__ import annotations
 
+import functools
+
+# ruff: noqa: BLE001
 import json
 import re
+import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from html import unescape
 from html.parser import HTMLParser
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any
 from urllib.parse import quote
 
 import requests
-
-import time
-import functools
-
 from mcp.server.fastmcp import FastMCP
+
 import telemetry
 
 
 class _HTMLTextExtractor(HTMLParser):
     def __init__(self) -> None:
         super().__init__()
-        self._parts: List[str] = []
+        self._parts: list[str] = []
         self._skip_depth = 0
 
-    def handle_starttag(self, tag: str, attrs: List[tuple[str, Optional[str]]]) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag in {"script", "style"}:
             self._skip_depth += 1
             return
@@ -73,17 +75,17 @@ class WikipediaClient:
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": self.user_agent})
 
-    def _get_json(self, url: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    def _get_json(self, url: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         response = self.session.get(url, params=params, timeout=self.timeout_seconds)
         response.raise_for_status()
         return response.json()
 
-    def _get_text(self, url: str, params: Optional[Dict[str, Any]] = None) -> str:
+    def _get_text(self, url: str, params: dict[str, Any] | None = None) -> str:
         response = self.session.get(url, params=params, timeout=self.timeout_seconds)
         response.raise_for_status()
         return response.text
 
-    def search_articles(self, query: str, limit: int = 5) -> List[Dict[str, str]]:
+    def search_articles(self, query: str, limit: int = 5) -> list[dict[str, str]]:
         payload = self._get_json(
             self.ACTION_API,
             params={
@@ -96,7 +98,7 @@ class WikipediaClient:
                 "srprop": "snippet",
             },
         )
-        results: List[Dict[str, str]] = []
+        results: list[dict[str, str]] = []
         for item in payload.get("query", {}).get("search", []):
             results.append(
                 {
@@ -106,9 +108,9 @@ class WikipediaClient:
             )
         return results
 
-    def get_summary(self, title: str) -> Dict[str, Any]:
+    def get_summary(self, title: str) -> dict[str, Any]:
         key = title_key(title)
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
         for base in self.REST_BASES:
             for url in (f"{base}/page/summary/{key}", f"{base}/page/{key}/summary"):
                 try:
@@ -123,10 +125,10 @@ class WikipediaClient:
                     last_error = exc
         raise RuntimeError(f"Unable to fetch summary for {title!r}: {last_error}")
 
-    def get_summaries(self, titles: Sequence[str]) -> List[Dict[str, Any]]:
+    def get_summaries(self, titles: Sequence[str]) -> list[dict[str, Any]]:
         return [self.get_summary(title) for title in titles]
 
-    def get_toc(self, title: str) -> List[Dict[str, str]]:
+    def get_toc(self, title: str) -> list[dict[str, str]]:
         payload = self._get_json(
             self.ACTION_API,
             params={
@@ -148,10 +150,10 @@ class WikipediaClient:
             )
         return sections
 
-    def get_section(self, title: str, section: str) -> Dict[str, Any]:
+    def get_section(self, title: str, section: str) -> dict[str, Any]:
         toc = self.get_toc(title)
         section_index = self._resolve_section_index(toc, section)
-        params: Dict[str, Any] = {
+        params: dict[str, Any] = {
             "action": "parse",
             "page": title,
             "prop": "text",
@@ -170,9 +172,9 @@ class WikipediaClient:
             "text": strip_html(html),
         }
 
-    def get_page(self, title: str) -> Dict[str, Any]:
+    def get_page(self, title: str) -> dict[str, Any]:
         key = title_key(title)
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
         for base in self.REST_BASES:
             for url in (f"{base}/page/html/{key}", f"{base}/page/{key}/html"):
                 try:
@@ -194,7 +196,7 @@ class WikipediaClient:
         raise RuntimeError(f"Unable to fetch page {title!r}: {last_error}")
 
     @staticmethod
-    def _resolve_section_index(toc: Sequence[Dict[str, str]], section: str) -> str:
+    def _resolve_section_index(toc: Sequence[dict[str, str]], section: str) -> str:
         normalized = section.strip().lower()
         for item in toc:
             if item["index"] == section:
@@ -204,7 +206,7 @@ class WikipediaClient:
         raise ValueError(f"Section {section!r} was not found")
 
     @staticmethod
-    def _resolve_section_line(toc: Sequence[Dict[str, str]], index: str) -> str:
+    def _resolve_section_line(toc: Sequence[dict[str, str]], index: str) -> str:
         for item in toc:
             if item["index"] == index:
                 return item["line"]
@@ -257,7 +259,7 @@ def search_articles(query: str, limit: int = 5) -> str:
 
 @mcp.tool()
 @with_telemetry
-def get_summaries(titles: List[str]) -> str:
+def get_summaries(titles: list[str]) -> str:
     """Fetch compact summaries for one or more Wikipedia page titles."""
     return json.dumps(client.get_summaries(titles), ensure_ascii=False, indent=2)
 

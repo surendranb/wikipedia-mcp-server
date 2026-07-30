@@ -1,14 +1,22 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Sequence
+from typing import Any, Literal
 
 import tiktoken
 
-from server import WikipediaClient, get_page, get_section, get_summaries, get_toc, search_articles, strip_html
-
+from server import (
+    WikipediaClient,
+    get_page,
+    get_section,
+    get_summaries,
+    get_toc,
+    search_articles,
+    strip_html,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 RESULTS_PATH = ROOT / "benchmark_results.json"
@@ -45,7 +53,7 @@ class PayloadStat:
     chars: int
 
 
-CASES: List[BenchmarkCase] = [
+CASES: list[BenchmarkCase] = [
     BenchmarkCase(
         slug="photosynthesis_products",
         name="Narrow question, one relevant section",
@@ -128,7 +136,7 @@ def count_chars(payload: Any) -> int:
     return len(to_json_text(payload))
 
 
-def summarize_direct_search(client: WikipediaClient, query: str, limit: int) -> List[Dict[str, str]]:
+def summarize_direct_search(client: WikipediaClient, query: str, limit: int) -> list[dict[str, str]]:
     payload = client._get_json(
         client.ACTION_API,
         params={
@@ -141,13 +149,13 @@ def summarize_direct_search(client: WikipediaClient, query: str, limit: int) -> 
             "srprop": "snippet",
         },
     )
-    results: List[Dict[str, str]] = []
+    results: list[dict[str, str]] = []
     for item in payload.get("query", {}).get("search", []):
         results.append({"title": item["title"], "snippet": strip_html(item.get("snippet", ""))})
     return results
 
 
-def fetch_direct_full_page(client: WikipediaClient, title: str) -> Dict[str, Any]:
+def fetch_direct_full_page(client: WikipediaClient, title: str) -> dict[str, Any]:
     payload = client._get_json(
         client.ACTION_API,
         params={"action": "parse", "page": title, "prop": "text", "format": "json"},
@@ -161,7 +169,7 @@ def contains_terms(payloads: Sequence[Any], expected_terms: Sequence[str]) -> bo
     return all(term.lower() in corpus for term in expected_terms)
 
 
-def build_direct_path(case: BenchmarkCase, client: WikipediaClient, encoding: tiktoken.Encoding) -> Dict[str, Any]:
+def build_direct_path(case: BenchmarkCase, client: WikipediaClient, encoding: tiktoken.Encoding) -> dict[str, Any]:
     search_payload = summarize_direct_search(client, case.query, case.candidate_limit)
     candidate_titles = [item["title"] for item in search_payload[: case.baseline_full_pages]]
     full_pages = [fetch_direct_full_page(client, title) for title in candidate_titles]
@@ -182,18 +190,18 @@ def build_direct_path(case: BenchmarkCase, client: WikipediaClient, encoding: ti
     }
 
 
-def build_mcp_path(case: BenchmarkCase, encoding: tiktoken.Encoding) -> Dict[str, Any]:
+def build_mcp_path(case: BenchmarkCase, encoding: tiktoken.Encoding) -> dict[str, Any]:
     search_payload = json.loads(search_articles(case.query, limit=case.candidate_limit))
     candidate_titles = [item["title"] for item in search_payload[: case.summary_titles]]
     summaries_payload = json.loads(get_summaries(candidate_titles))
 
-    toc_titles: List[str] = []
+    toc_titles: list[str] = []
     for selection in case.selections:
         if selection.title not in toc_titles:
             toc_titles.append(selection.title)
     tocs = {title: json.loads(get_toc(title)) for title in toc_titles}
 
-    deep_payloads: List[Dict[str, Any]] = []
+    deep_payloads: list[dict[str, Any]] = []
     for selection in case.selections:
         if selection.mode == "section":
             deep_payloads.append(json.loads(get_section(selection.title, selection.target)))
@@ -233,7 +241,7 @@ def build_mcp_path(case: BenchmarkCase, encoding: tiktoken.Encoding) -> Dict[str
     }
 
 
-def benchmark_case(case: BenchmarkCase, client: WikipediaClient, encoding: tiktoken.Encoding) -> Dict[str, Any]:
+def benchmark_case(case: BenchmarkCase, client: WikipediaClient, encoding: tiktoken.Encoding) -> dict[str, Any]:
     direct = build_direct_path(case, client, encoding)
     mcp = build_mcp_path(case, encoding)
     token_delta = direct["total_tokens"] - mcp["total_tokens"]
@@ -253,12 +261,12 @@ def benchmark_case(case: BenchmarkCase, client: WikipediaClient, encoding: tikto
     }
 
 
-def render_markdown(results: Sequence[Dict[str, Any]]) -> str:
+def render_markdown(results: Sequence[dict[str, Any]]) -> str:
     direct_total = sum(item["direct"]["total_tokens"] for item in results)
     mcp_total = sum(item["mcp"]["total_tokens"] for item in results)
     token_delta = direct_total - mcp_total
     reduction = (token_delta / direct_total) * 100 if direct_total else 0.0
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append("# Token Efficiency Benchmark Results")
     lines.append("")
     lines.append(f"Tokenizer: `{ENCODING_NAME}`")
