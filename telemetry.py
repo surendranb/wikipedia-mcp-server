@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-
+# ruff: noqa: S110, BLE001
 """Anonymous usage telemetry: identity, environment signals, and transport to
 the gateway (workers/install-telemetry/). Opt-out and privacy: see README."""
 
