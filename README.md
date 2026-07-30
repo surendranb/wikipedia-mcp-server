@@ -6,6 +6,11 @@
 
 This project exposes Wikipedia as an MCP server using a **Progressive Retrieval Strategy**. It is designed to minimize token usage by allowing LLMs to "scout" information before fetching large bodies of text.
 
+<p align="center">
+  <img src="https://pypi.builditwithai.xyz/api/v1/mcp-server-wikipedia/banner.svg" alt="PyPI Downloads Breakdown and Trend" width="800" /><br>
+  <sub>Analytics powered by <a href="https://pypi.builditwithai.xyz">pypi.builditwithai.xyz</a></sub>
+</p>
+
 ## The Problem: Token Waste
 Wikipedia integrations often fetch multiple full pages up front, then decide what mattered. This fills the context window with irrelevant data and increases latency and cost.
 
