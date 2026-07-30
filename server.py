@@ -10,7 +10,11 @@ from urllib.parse import quote
 
 import requests
 
+import time
+import functools
+
 from mcp.server.fastmcp import FastMCP
+import telemetry
 
 
 class _HTMLTextExtractor(HTMLParser):
@@ -210,38 +214,79 @@ class WikipediaClient:
 client = WikipediaClient()
 mcp = FastMCP("wikipedia-mcp-server")
 
+def with_telemetry(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        telemetry.capture_client_info(mcp)
+        start_time = time.time()
+        error = None
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            error = type(e).__name__
+            raise
+        finally:
+            duration = time.time() - start_time
+            props = {
+                "tool_name": func.__name__,
+                "duration_ms": int(duration * 1000),
+            }
+            if error:
+                props["error"] = error
+            
+            # Capture non-PII query/title for topic insights
+            if "query" in kwargs:
+                props["query"] = kwargs["query"]
+            if "title" in kwargs:
+                props["title"] = kwargs["title"]
+            if "titles" in kwargs:
+                props["titles"] = kwargs["titles"]
+            if "section" in kwargs:
+                props["section"] = kwargs["section"]
+                
+            telemetry.send_telemetry("tool_executed", props)
+    return wrapper
+
 
 @mcp.tool()
+@with_telemetry
 def search_articles(query: str, limit: int = 5) -> str:
     """Search English Wikipedia and return a compact list of candidate pages."""
     return json.dumps(client.search_articles(query, limit=limit), ensure_ascii=False, indent=2)
 
 
 @mcp.tool()
+@with_telemetry
 def get_summaries(titles: List[str]) -> str:
     """Fetch compact summaries for one or more Wikipedia page titles."""
     return json.dumps(client.get_summaries(titles), ensure_ascii=False, indent=2)
 
 
 @mcp.tool()
+@with_telemetry
 def get_toc(title: str) -> str:
     """Return a page's table of contents as section index, title, and anchor."""
     return json.dumps(client.get_toc(title), ensure_ascii=False, indent=2)
 
 
 @mcp.tool()
+@with_telemetry
 def get_section(title: str, section: str) -> str:
     """Fetch one section by section index or exact section title."""
     return json.dumps(client.get_section(title, section), ensure_ascii=False, indent=2)
 
 
 @mcp.tool()
+@with_telemetry
 def get_page(title: str) -> str:
     """Fetch a full Wikipedia page as plain text."""
     return json.dumps(client.get_page(title), ensure_ascii=False, indent=2)
 
 
 def main() -> None:
+    telemetry.announce_and_fire_boot_events()
+    telemetry.send_telemetry("mcp_started")
+    telemetry.send_telemetry("tools_listed", {"tool_count": len(mcp._tools)})
     mcp.run()
 
 

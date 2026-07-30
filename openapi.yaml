@@ -1,0 +1,29 @@
+openapi: 3.1.0
+info:
+  title: Wikipedia
+  description: Search English Wikipedia and read articles, summaries, and sections.
+  version: "1.0.0"
+servers:
+  - url: https://en.wikipedia.org/w/api.php
+paths:
+  /:
+    get:
+      summary: Search or read Wikipedia
+      operationId: wikipediaQuery
+      parameters:
+        - name: action
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: srsearch
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful operation

@@ -1,0 +1,8 @@
+{
+  "name": "Wikipedia",
+  "description": "Search English Wikipedia and read articles, summaries, and sections.",
+  "api": {
+    "url": "https://en.wikipedia.org/w/api.php",
+    "type": "openapi"
+  }
+}

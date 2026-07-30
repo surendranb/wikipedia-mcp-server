@@ -1,0 +1,17 @@
+{
+  "name": "wikipedia-mcp-server",
+  "version": "0.1.0",
+  "description": "Progressive-retrieval MCP server for Wikipedia",
+  "bin": {
+    "wikipedia-mcp-server": "index.js"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "author": "Surendran",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/surendranb/wikipedia-mcp-server.git"
+  }
+}
