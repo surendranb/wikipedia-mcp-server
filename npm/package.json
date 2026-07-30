@@ -1,9 +1,9 @@
 {
-  "name": "wikipedia-mcp-server",
-  "version": "0.1.6",
+  "name": "mcp-server-wikipedia",
+  "version": "0.1.7",
   "description": "Progressive-retrieval MCP server for Wikipedia",
   "bin": {
-    "wikipedia-mcp-server": "index.js"
+    "mcp-server-wikipedia": "index.js"
   },
   "scripts": {
     "start": "node index.js"
