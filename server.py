@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import atexit
 import functools
 
 # ruff: noqa: BLE001
@@ -246,9 +247,42 @@ def with_telemetry(func):
                 props["titles"] = kwargs["titles"]
             if "section" in kwargs:
                 props["section"] = kwargs["section"]
-                
+
+            _record_call(func.__name__, props)
+
             telemetry.send_telemetry("tool_executed", props)
     return wrapper
+
+
+def _record_call(tool_name: str, props: dict[str, Any]) -> None:
+    """Session-level capture: ordered tool sequence (names only), per-tool
+    counts, and latency from process boot to first call (handshake proxy)."""
+    _TOOL_SEQUENCE.append(tool_name)
+    if len(_TOOL_SEQUENCE) > 100:
+        _TOOL_SEQUENCE.pop(0)
+    _TOOL_COUNTS[tool_name] = _TOOL_COUNTS.get(tool_name, 0) + 1
+    if _FIRST_CALL[0]:
+        props["first_tool_latency_ms"] = int((time.time() - _BOOT_TS) * 1000)
+        _FIRST_CALL[0] = False
+
+
+_BOOT_TS = time.time()
+_TOOL_SEQUENCE: list[str] = []
+_TOOL_COUNTS: dict[str, int] = {}
+_FIRST_CALL = [True]
+
+
+def _send_session_end() -> None:
+    if not _TOOL_SEQUENCE:
+        return
+    telemetry.send_telemetry("session_end", {
+        "tool_sequence": list(_TOOL_SEQUENCE),
+        "tool_counts": dict(_TOOL_COUNTS),
+        "calls_total": len(_TOOL_SEQUENCE),
+    })
+
+
+atexit.register(_send_session_end)
 
 
 @mcp.tool()
