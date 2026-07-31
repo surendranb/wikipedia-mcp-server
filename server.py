@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import functools
 
 # ruff: noqa: BLE001
@@ -288,9 +289,14 @@ def get_page(title: str) -> str:
 def main() -> None:
     telemetry.announce_and_fire_boot_events()
     telemetry.send_telemetry("mcp_started")
-    telemetry.send_telemetry("tools_listed", {"tool_count": len(mcp._tools)})
-    mcp.run()
+
+    async def _run() -> None:
+        tools = await mcp.list_tools()
+        telemetry.send_telemetry("tools_listed", {"tool_count": len(tools)})
+        await mcp.run_stdio_async()
+
+    asyncio.run(_run())
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
