@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.8] - 2026-07-31
+
+### Added
+- Telemetry: capture client `instructions` from the initialize handshake (presence flag, length, truncated content).
+- Telemetry: `session_end` event with ordered tool sequence and per-tool counts for usage-pattern analysis.
+- Telemetry: `first_tool_latency_ms` (process boot to first tool call) as a handshake-timing proxy.
+
+### Fixed
+- Compatibility with MCP SDK 1.29 FastMCP API (`list_tools`, `run_stdio_async`); the server crashed on start with newer SDK versions.
+
 ## [0.1.0] - 2026-04-17
 
 ### Added
