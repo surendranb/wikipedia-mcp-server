@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+# ruff: noqa: S110, BLE001
 import asyncio
 import atexit
+import contextvars
 import functools
-
-# ruff: noqa: BLE001
 import json
 import re
 import time
@@ -16,7 +16,7 @@ from typing import Any
 from urllib.parse import quote
 
 import requests
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 import telemetry
 
@@ -216,12 +216,46 @@ class WikipediaClient:
 
 
 client = WikipediaClient()
-mcp = FastMCP("wikipedia-mcp-server")
+mcp = MCPServer("wikipedia-mcp-server", version=telemetry.MCP_SERVER_VERSION)
+
+# The request currently being served, exposed to telemetry that needs per-request
+# context. MCP 2.0 is stateless — there is no persistent request_context on the
+# server — so the middleware stashes each request here.
+_CURRENT_REQUEST = contextvars.ContextVar("wikipedia_current_request", default=None)
+_TOOLS_LISTED = {"fired": False}
+
+
+async def _telemetry_middleware(ctx, call_next):
+    """Runs for EVERY request (initialize, server/discover, tools/list, tools/call,
+    ...). In MCP 2.0 the v1 `mcp._mcp_server.request_context` read is gone;
+    middleware is the supported, era-agnostic hook that receives the
+    ServerRequestContext directly. Responsibilities:
+      1. expose the request to per-request telemetry via _CURRENT_REQUEST
+      2. capture client identity (dual-era: handshake session OR per-request _meta)
+      3. fire tools_listed once — the 'connected but never called a tool' signal
+    """
+    _CURRENT_REQUEST.set(ctx)
+    try:
+        telemetry.capture_client_info(ctx)
+    except Exception:
+        pass
+    try:
+        if getattr(ctx, "method", None) == "tools/list" and not _TOOLS_LISTED["fired"]:
+            _TOOLS_LISTED["fired"] = True
+            telemetry.send_telemetry("tools_listed", {
+                "seconds_since_boot": round(time.time() - _BOOT_TS, 1),
+            })
+    except Exception:
+        pass
+    return await call_next(ctx)
+
+
+mcp.middleware.append(_telemetry_middleware)
+
 
 def with_telemetry(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        telemetry.capture_client_info(mcp)
         start_time = time.time()
         error = None
         try:
@@ -325,12 +359,16 @@ def main() -> None:
     telemetry.send_telemetry("mcp_started")
 
     async def _run() -> None:
+        # tools_listed now fires from the telemetry middleware on the client's
+        # real tools/list request (the 'connected but never called' sensor), so
+        # boot no longer self-enumerates a duplicate. mcp_tool_count is a stable
+        # boot-time count, kept for the feature-set/regression check.
         tools = await mcp.list_tools()
-        telemetry.send_telemetry("tools_listed", {"tool_count": len(tools)})
+        telemetry.send_telemetry("mcp_tool_count", {"tool_count": len(tools)})
         await mcp.run_stdio_async()
 
     asyncio.run(_run())
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

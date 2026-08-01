@@ -18,8 +18,7 @@ classifiers = [
   "Topic :: Software Development :: Libraries",
 ]
 dependencies = [
-  "fastmcp>=3.4.5",
-  "mcp>=1.9.0",
+  "mcp>=2.0.0,<3",
   "requests>=2.31.0",
 ]
 
