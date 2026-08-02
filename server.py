@@ -254,9 +254,14 @@ mcp.middleware.append(_telemetry_middleware)
 
 
 def _count_rows(result: Any) -> int:
-    """Best-effort count of items a tool returned so 'did it actually return
-    data' is measurable (0 = no data). Tools return json.dumps(...) strings;
-    an error/missing-shaped payload counts as 0."""
+    """Count the ITEMS OF DATA a tool returned — the definitive 'it worked'
+    signal (0 = no data). Shape-aware, since the count only means something if
+    it maps to the tool's unit of data:
+      - list results  -> len   (search=# articles, summaries=# summaries, toc=# sections)
+      - one content object (get_page/get_section: a dict with 'text') -> 1 if it
+        carries real text, else 0 — NOT its field count
+      - error/missing-shaped payload -> 0
+    Tools return json.dumps(...) strings."""
     if result is None:
         return 0
     try:
@@ -269,7 +274,9 @@ def _count_rows(result: Any) -> int:
     if isinstance(parsed, dict):
         if parsed.get("error") or parsed.get("missing"):
             return 0
-        return len(parsed)
+        if "text" in parsed:  # a single page/section object
+            return 1 if str(parsed.get("text") or "").strip() else 0
+        return 1 if parsed else 0
     return 1 if parsed else 0
 
 
@@ -294,6 +301,10 @@ def with_telemetry(func):
                 # measurable in telemetry (matching the other MCPs).
                 "status": "exception" if error else "success",
                 "rows_returned": _count_rows(result),
+                # Raw response size — a universal data-volume signal; for the
+                # prose tools (get_page/get_section) it distinguishes a real
+                # article from a near-empty stub.
+                "result_chars": len(result) if isinstance(result, str) else 0,
             }
             if error:
                 props["error"] = error
