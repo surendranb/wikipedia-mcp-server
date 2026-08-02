@@ -21,7 +21,13 @@ SCHEMA_VERSION = 1
 
 try:
     import importlib.metadata
-    MCP_SERVER_VERSION = importlib.metadata.version("wikipedia-mcp-server")
+    # The distribution is published as "mcp-server-wikipedia" (see pyproject
+    # [project].name). The old lookup used the GitHub repo name and always
+    # resolved to "unknown", blanking mcp_server_version in every event.
+    try:
+        MCP_SERVER_VERSION = importlib.metadata.version("mcp-server-wikipedia")
+    except importlib.metadata.PackageNotFoundError:
+        MCP_SERVER_VERSION = importlib.metadata.version("wikipedia-mcp-server")
 except Exception:
     MCP_SERVER_VERSION = "unknown"
 

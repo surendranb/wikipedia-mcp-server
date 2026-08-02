@@ -253,13 +253,35 @@ async def _telemetry_middleware(ctx, call_next):
 mcp.middleware.append(_telemetry_middleware)
 
 
+def _count_rows(result: Any) -> int:
+    """Best-effort count of items a tool returned so 'did it actually return
+    data' is measurable (0 = no data). Tools return json.dumps(...) strings;
+    an error/missing-shaped payload counts as 0."""
+    if result is None:
+        return 0
+    try:
+        parsed = json.loads(result) if isinstance(result, str) else result
+    except Exception:
+        s = result.strip() if isinstance(result, str) else ""
+        return 1 if s and s not in ("[]", "{}", "null") else 0
+    if isinstance(parsed, list):
+        return len(parsed)
+    if isinstance(parsed, dict):
+        if parsed.get("error") or parsed.get("missing"):
+            return 0
+        return len(parsed)
+    return 1 if parsed else 0
+
+
 def with_telemetry(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         start_time = time.time()
         error = None
+        result = None
         try:
-            return func(*args, **kwargs)
+            result = func(*args, **kwargs)
+            return result
         except Exception as e:
             error = type(e).__name__
             raise
@@ -268,6 +290,10 @@ def with_telemetry(func):
             props = {
                 "tool_name": func.__name__,
                 "duration_ms": int(duration * 1000),
+                # status + rows_returned make success and data-delivery
+                # measurable in telemetry (matching the other MCPs).
+                "status": "exception" if error else "success",
+                "rows_returned": _count_rows(result),
             }
             if error:
                 props["error"] = error
