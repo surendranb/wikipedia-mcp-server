@@ -294,16 +294,23 @@ def with_telemetry(func):
             raise
         finally:
             duration = time.time() - start_time
+            rows = _count_rows(result)
+            
+            is_json_error = False
+            if not error and isinstance(result, str):
+                try:
+                    parsed = json.loads(result)
+                    if isinstance(parsed, dict) and "error" in parsed:
+                        is_json_error = True
+                        error = "ToolError"
+                except Exception:
+                    pass
+
             props = {
                 "tool_name": func.__name__,
                 "duration_ms": int(duration * 1000),
-                # status + rows_returned make success and data-delivery
-                # measurable in telemetry (matching the other MCPs).
-                "status": "exception" if error else "success",
-                "rows_returned": _count_rows(result),
-                # Raw response size — a universal data-volume signal; for the
-                # prose tools (get_page/get_section) it distinguishes a real
-                # article from a near-empty stub.
+                "status": "error" if (error or is_json_error) else "success",
+                "rows_returned": rows,
                 "result_chars": len(result) if isinstance(result, str) else 0,
             }
             if error:
@@ -360,35 +367,60 @@ atexit.register(_send_session_end)
 @with_telemetry
 def search_articles(query: str, limit: int = 5) -> str:
     """Search English Wikipedia and return a compact list of candidate pages."""
-    return json.dumps(client.search_articles(query, limit=limit), ensure_ascii=False, indent=2)
+    if not isinstance(query, str):
+        return json.dumps({"error": "query must be a string"}, ensure_ascii=False, indent=2)
+    try:
+        return json.dumps(client.search_articles(query, limit=limit), ensure_ascii=False, indent=2)
+    except Exception as e:
+        return json.dumps({"error": f"Failed to search articles: {e}"}, ensure_ascii=False, indent=2)
 
 
 @mcp.tool()
 @with_telemetry
 def get_summaries(titles: list[str]) -> str:
     """Fetch compact summaries for one or more Wikipedia page titles."""
-    return json.dumps(client.get_summaries(titles), ensure_ascii=False, indent=2)
+    if not isinstance(titles, list):
+        return json.dumps({"error": "titles must be a list of strings"}, ensure_ascii=False, indent=2)
+    try:
+        return json.dumps(client.get_summaries(titles), ensure_ascii=False, indent=2)
+    except Exception as e:
+        return json.dumps({"error": f"Failed to get summaries: {e}"}, ensure_ascii=False, indent=2)
 
 
 @mcp.tool()
 @with_telemetry
 def get_toc(title: str) -> str:
     """Return a page's table of contents as section index, title, and anchor."""
-    return json.dumps(client.get_toc(title), ensure_ascii=False, indent=2)
+    if not isinstance(title, str):
+        return json.dumps({"error": "title must be a string"}, ensure_ascii=False, indent=2)
+    try:
+        return json.dumps(client.get_toc(title), ensure_ascii=False, indent=2)
+    except Exception as e:
+        return json.dumps({"error": f"Failed to get TOC: {e}"}, ensure_ascii=False, indent=2)
 
 
 @mcp.tool()
 @with_telemetry
 def get_section(title: str, section: str) -> str:
     """Fetch one section by section index or exact section title."""
-    return json.dumps(client.get_section(title, section), ensure_ascii=False, indent=2)
+    if not isinstance(title, str) or not isinstance(section, str):
+        return json.dumps({"error": "title and section must be strings"}, ensure_ascii=False, indent=2)
+    try:
+        return json.dumps(client.get_section(title, section), ensure_ascii=False, indent=2)
+    except Exception as e:
+        return json.dumps({"error": f"Failed to get section: {e}"}, ensure_ascii=False, indent=2)
 
 
 @mcp.tool()
 @with_telemetry
 def get_page(title: str) -> str:
     """Fetch a full Wikipedia page as plain text."""
-    return json.dumps(client.get_page(title), ensure_ascii=False, indent=2)
+    if not isinstance(title, str):
+        return json.dumps({"error": "title must be a string"}, ensure_ascii=False, indent=2)
+    try:
+        return json.dumps(client.get_page(title), ensure_ascii=False, indent=2)
+    except Exception as e:
+        return json.dumps({"error": f"Failed to get page: {e}"}, ensure_ascii=False, indent=2)
 
 
 def main() -> None:
