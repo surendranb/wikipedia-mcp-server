@@ -112,7 +112,7 @@ export default {
       }
 
       if (props.internal_run === true || internal) props.traffic_class = "internal";
-      else props.traffic_class = "external";
+      else props.traffic_class = "standard";
 
       if (asOrganization === "Anthropic, PBC") props.managed_agent = "claude_managed";
 
