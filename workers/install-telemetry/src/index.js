@@ -4,12 +4,14 @@
  */
 
 const GATEWAY_VERSION = "1";
+const SERVER_NAME = "wikipedia";
 
 // Unknown events are still forwarded, just tagged.
 const KNOWN_EVENTS = new Set([
   "mcp_started", "tool_executed", "server_first_install", "resource_read",
   "package_download", "install_intent", "install_completed", "surface_click",
-  "skill_tip_shown", "tools_listed", "mcp_tool_count", "session_end",
+  "skill_tip_shown", "skill_read", "tools_listed", "mcp_tool_count", "session_end",
+  "server_discovered",
 ]);
 
 // /go/<surface> records a click, then redirects to the client install deeplink.
@@ -76,22 +78,20 @@ export default {
         });
       }
 
-      const eventName = typeof body.event === "string" ? body.event : "";
-      if (!/^[a-z_][a-z0-9_]{0,63}$/.test(eventName)) {
-        return new Response(JSON.stringify({ recorded: false, reason: "invalid_event_name" }), {
-          status: 400, headers: { "content-type": "application/json" },
-        });
-      }
-      if (!KNOWN_EVENTS.has(eventName)) {
-        return new Response(JSON.stringify({ recorded: false, reason: "unregistered_event" }), {
-          status: 400, headers: { "content-type": "application/json" },
-        });
-      }
+      let eventName = typeof body.event === "string" ? body.event : "";
       let props = (body.properties && typeof body.properties === "object") ? body.properties : {};
 
       const propsSize = JSON.stringify(props).length;
       if (propsSize > MAX_PROPS_BYTES) {
         props = { payload_truncated: true, original_size_bytes: propsSize };
+      }
+
+      // Accept-and-tag: malformed/absent names become malformed_event, unknown names are tagged.
+      if (!/^[a-z_][a-z0-9_]{0,63}$/.test(eventName)) {
+        props.raw_event_name = String(body.event ?? "").slice(0, 200);
+        eventName = "malformed_event";
+      } else if (!KNOWN_EVENTS.has(eventName)) {
+        props.unregistered_event = true;
       }
 
       props.$ip = null;
@@ -102,7 +102,14 @@ export default {
       props.as_organization = asOrganization;
       props.via_gateway = true;
       props.gateway_version = GATEWAY_VERSION;
+      if ("mcp_server_name" in props && props.mcp_server_name !== SERVER_NAME) {
+        props.client_reported_server_name = props.mcp_server_name;
+      }
+      props.mcp_server_name = SERVER_NAME;
       if (!body.distinct_id) props.missing_distinct_id = true;
+      else if (!/^(inst_|anon_)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(body.distinct_id))) {
+        props.nonstandard_distinct_id = true;
+      }
 
       if (props.internal_run === true || internal) props.traffic_class = "internal";
       else props.traffic_class = "external";
@@ -134,6 +141,7 @@ export default {
           as_organization: asOrganization,
           via_gateway: true,
           gateway_version: GATEWAY_VERSION,
+          mcp_server_name: SERVER_NAME,
           surface: surface.slice(0, 32),
           known_surface: Boolean(target),
           user_agent: userAgent,
@@ -166,6 +174,7 @@ export default {
               as_organization: asOrganization,
               via_gateway: true,
               gateway_version: GATEWAY_VERSION,
+              mcp_server_name: SERVER_NAME,
               install_source: bucketSrc(body.src),
               install_source_raw: body.src ? String(body.src).slice(0, 64) : null,
               execution_mode: body.execution_mode || "unknown",
@@ -203,6 +212,7 @@ export default {
           $geoip_disable: true,
           via_gateway: true,
           gateway_version: GATEWAY_VERSION,
+          mcp_server_name: SERVER_NAME,
           install_source: bucketSrc(url.searchParams.get("src")),
           install_source_raw: url.searchParams.get("src") ? String(url.searchParams.get("src")).slice(0, 64) : null,
           referer: (request.headers.get("referer") || "direct").slice(0, 200),
