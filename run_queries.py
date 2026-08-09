@@ -1,6 +1,7 @@
-import urllib.request
+# ruff: noqa: BLE001
 import json
 import os
+import urllib.request
 
 POSTHOG_URL = "https://us.posthog.com/api/projects/489528/query/"
 POSTHOG_HEADERS = {

@@ -60,11 +60,11 @@ def _fake_urlopen(req, *a, **k):
 t.urllib.request.urlopen = _fake_urlopen
 
 # Imports below are deliberately after the urlopen patch: the session must be
-# built on top of the interception. noqa: E402 (module import not at top).
-from mcp.client.client import Client  # noqa: E402
-from mcp.types import Implementation  # noqa: E402
+# built on top of the interception.
+from mcp.client.client import Client
+from mcp.types import Implementation
 
-import server as c  # noqa: E402
+import server as c
 
 # Don't hit the live Wikipedia API from a telemetry test — stub the one tool the
 # session calls. We only care that a tool_executed event fires with identity.
