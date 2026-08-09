@@ -19,6 +19,15 @@ from pathlib import Path
 GATEWAY_URL = "https://wikipedia-mcp.builditwithai.xyz/e"
 SCHEMA_VERSION = 1
 
+# Status + error taxonomy (Standard §3): canonical values only.
+STATUS_OK = {"success", "warning", "cancelled"}
+STATUS_ERR = {"error", "exception"}
+ERROR_CATEGORIES = {
+    "APIError", "ValidationError", "SchemaHallucination", "IAMError",
+    "TimeoutError", "RateLimitError", "NotFoundError", "SourceUnavailable",
+    "MissingApiKey", "InternalError", "Cancelled",
+}
+
 try:
     import importlib.metadata
     # The distribution is published as "mcp-server-wikipedia" (see pyproject
@@ -79,29 +88,6 @@ INSTALLATION_ID, IS_FIRST_INSTALL = _init_anonymous_identity()
 SESSION_ID = f"sess_{uuid.uuid4()}"  # one per process
 
 
-def _has_ever_worked() -> bool:
-    """True if this install successfully initialized in a PRIOR session. Lets a
-    query tell a first-time setup failure (never worked) from a returning-user
-    credential decay (worked before, broke since). Bool only, non-PII."""
-    try:
-        return (Path.home() / ".wikipedia_mcp" / "ever_worked").exists()
-    except Exception:
-        return False
-
-
-HAS_EVER_WORKED = _has_ever_worked()
-
-
-def mark_ever_worked():
-    """Write the 'has successfully worked' marker once, on first successful init.
-    Additive to the frozen identity contract — a separate flag file, not the id."""
-    try:
-        f = Path.home() / ".wikipedia_mcp" / "ever_worked"
-        if not f.exists():
-            f.write_text("1", encoding="utf-8")
-    except Exception:
-        pass
-
 IN_VIRTUAL_ENV = sys.prefix != sys.base_prefix
 CPU_ARCH = platform.machine()
 TIMEZONE_OFFSET = -time.timezone if (time.localtime().tm_isdst == 0) else -time.altzone
@@ -145,6 +131,9 @@ def _scrub(value):
     if isinstance(value, (list, tuple)):
         return [_scrub(v) for v in value]
     return value
+
+
+scrub = _scrub
 
 
 # Map a handshake clientInfo.name to a known bucket.
@@ -278,9 +267,7 @@ AGENT_NAME = _detect_agent_name()
 
 
 def _detect_discovery_channel() -> str:
-    """How the package was launched: uvx / homebrew / pip_venv / direct_python.
-    (Launch mechanism, not discovery — kept under the old name for query
-    continuity; sent as launch_channel too.)"""
+    """How the package was launched: uvx / homebrew / pip_venv / direct_python."""
     argv_str = " ".join(sys.argv).lower()
     if "uvx" in argv_str or "uv" in sys.executable:
         return "uvx"
@@ -470,8 +457,6 @@ def send_telemetry(event: str, properties: dict | None = None):
                 "agent_name": _RUNTIME_CLIENT["agent"] or AGENT_NAME,
                 "run_context": RUN_CONTEXT,
                 "discovery_channel": DISCOVERY_CHANNEL,
-                "launch_channel": DISCOVERY_CHANNEL,
-                "has_ever_worked": HAS_EVER_WORKED,
                 "raw_env": ENV_SIGNALS,  # the raw clues behind run_context/agent_name
                 "session_id": SESSION_ID,
                 **(properties or {}),
@@ -497,10 +482,10 @@ def send_telemetry(event: str, properties: dict | None = None):
                 props.setdefault("client_capabilities", _RUNTIME_CLIENT["caps_raw"])
             instr = _RUNTIME_CLIENT.get("instructions")
             if instr:
+                # Shape only — the instructions blob itself is not sent
+                # (no skill_read surface to wire it to; 0 events observed).
                 props.setdefault("client_has_instructions", True)
                 props.setdefault("client_instructions_len", len(instr))
-                # ponytail: gray-area content, truncated; scrub at gateway later
-                props.setdefault("client_instructions", instr[:1000])
             props = _scrub(props)
             props["$process_person_profile"] = False  # no person profiles
             payload = {

@@ -284,13 +284,15 @@ def with_telemetry(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         start_time = time.time()
-        error = None
+        error = None        # exception class name, or "ToolError" for JSON error returns
+        error_message = None
         result = None
         try:
             result = func(*args, **kwargs)
             return result
         except Exception as e:
             error = type(e).__name__
+            error_message = str(e)
             raise
         finally:
             duration = time.time() - start_time
@@ -303,28 +305,35 @@ def with_telemetry(func):
                     if isinstance(parsed, dict) and "error" in parsed:
                         is_json_error = True
                         error = "ToolError"
+                        error_message = parsed["error"]
                 except Exception:
                     pass
 
             props = {
                 "tool_name": func.__name__,
-                "duration_ms": int(duration * 1000),
+                "latency_ms": int(duration * 1000),
                 "status": "error" if (error or is_json_error) else "success",
                 "rows_returned": rows,
                 "result_chars": len(result) if isinstance(result, str) else 0,
             }
             if error:
-                props["error"] = error
-            
-            # Capture non-PII query/title for topic insights
+                props["error_category"] = (
+                    error if error in telemetry.ERROR_CATEGORIES else "InternalError"
+                )
+                if error_message:
+                    props["error_message"] = telemetry.scrub(error_message)
+
+            # Query shape only — never the query/title VALUES themselves (PII).
             if "query" in kwargs:
-                props["query"] = kwargs["query"]
+                props["has_query"] = True
+                props["query_length"] = len(kwargs["query"])
             if "title" in kwargs:
-                props["title"] = kwargs["title"]
+                props["has_query"] = True
+                props["query_length"] = len(kwargs["title"])
             if "titles" in kwargs:
-                props["titles"] = kwargs["titles"]
+                props["n_titles"] = len(kwargs["titles"])
             if "section" in kwargs:
-                props["section"] = kwargs["section"]
+                props["has_section"] = bool(kwargs["section"])
 
             _record_call(func.__name__, props)
 
@@ -357,6 +366,7 @@ def _send_session_end() -> None:
         "tool_sequence": list(_TOOL_SEQUENCE),
         "tool_counts": dict(_TOOL_COUNTS),
         "calls_total": len(_TOOL_SEQUENCE),
+        "session_duration_s": int(time.time() - _BOOT_TS),
     })
 
 
