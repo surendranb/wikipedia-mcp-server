@@ -4,6 +4,7 @@
 the gateway (workers/install-telemetry/). Opt-out and privacy: see README."""
 
 import atexit
+import contextvars
 import json
 import os
 import platform
@@ -17,7 +18,8 @@ import uuid
 from pathlib import Path
 
 GATEWAY_URL = "https://wikipedia-mcp.builditwithai.xyz/e"
-SCHEMA_VERSION = 1
+# v2 (Standard §7): envelope drops the legacy launch_channel / has_ever_worked.
+SCHEMA_VERSION = 2
 
 # Status + error taxonomy (Standard §3): canonical values only.
 STATUS_OK = {"success", "warning", "cancelled"}
@@ -59,12 +61,22 @@ INTERNAL_RUN = os.getenv("WIKIPEDIA_MCP_INTERNAL", "").lower() in ("1", "true", 
 
 def _init_anonymous_identity():
     """Random installation UUID in ~/.wikipedia_mcp/; created on first run, reset by
-    deleting the folder. Returns (installation_id, is_first_install)."""
+    deleting the folder. Returns (installation_id, is_first_install).
+
+    Opt-out gates ALL side effects (Standard §1.4): when telemetry is disabled
+    nothing is written — an existing id may still be read, but no directory or
+    file is ever created."""
     try:
         config_dir = Path.home() / ".wikipedia_mcp"
+        id_file = config_dir / "installation_id"
+
+        if TELEMETRY_DISABLED:
+            if id_file.exists():
+                return id_file.read_text(encoding="utf-8").strip(), False
+            return f"anon_{uuid.uuid4()}", False
+
         config_dir.mkdir(parents=True, exist_ok=True)
 
-        id_file = config_dir / "installation_id"
         if id_file.exists():
             installation_id = id_file.read_text(encoding="utf-8").strip()
             is_first_install = False
@@ -170,9 +182,13 @@ def _normalize_client_name(raw):
 
 
 def _process_ancestor_names(max_depth=4):
-    """Parent-process command names (the agent sits above uvx/python)."""
+    """Parent-process command names (the agent sits above uvx/python).
+    Skipped entirely when opted out — no `ps` subprocess side effects
+    (Standard §1.4)."""
     names = []
     try:
+        if TELEMETRY_DISABLED:
+            return names
         if platform.system() not in ("Darwin", "Linux"):
             return names
         pid = os.getppid()
@@ -406,6 +422,101 @@ def capture_client_info(ctx):
         pass
 
 
+def _trace_ids(traceparent):
+    """Parse a W3C traceparent (SEP-414) into (trace_id, span_id)."""
+    try:
+        parts = str(traceparent).split("-")
+        if len(parts) >= 4:
+            return parts[1], parts[2]
+    except Exception:
+        pass
+    return None, None
+
+
+def capture_request(ctx):
+    """Per-request protocol capture (MCP 2.x stateless _meta). Returns a props
+    dict merged into every event fired while this request is being served.
+    Per-request data always wins over stored handshake state (Standard §3);
+    the legacy handshake (capture_client_info) remains the fallback for
+    clients that don't send per-request _meta. Property names mirror gsc's
+    capture_request."""
+    props = {}
+    if ctx is None:
+        return props
+    try:
+        meta = _meta_as_dict(getattr(ctx, "meta", None))
+
+        info = meta.get("io.modelcontextprotocol/clientInfo") if meta else None
+        if isinstance(info, dict) and info.get("name"):
+            props["mcp_client_name"] = str(info["name"])
+            props["agent_name"] = _normalize_client_name(info.get("name")) or AGENT_NAME
+            if info.get("version"):
+                props["mcp_client_version"] = str(info["version"])
+            if info.get("title"):
+                props["mcp_client_title"] = str(info["title"])
+            if info.get("description"):
+                props["mcp_client_description"] = str(info["description"])
+
+        proto = meta.get("io.modelcontextprotocol/protocolVersion") if meta else None
+        if not proto:
+            proto = getattr(ctx, "protocol_version", None)
+        if proto:
+            props["mcp_protocol_version"] = str(proto)
+
+        caps = None
+        if meta:
+            caps = (meta.get("io.modelcontextprotocol/clientCapabilities")
+                    or meta.get("io.modelcontextprotocol/capabilities"))
+        if isinstance(caps, dict):
+            props["client_supports_sampling"] = "sampling" in caps
+            props["client_supports_roots"] = "roots" in caps
+            props["client_supports_elicitation"] = "elicitation" in caps
+            props["client_has_experimental_caps"] = bool(caps.get("experimental"))
+
+        traceparent = meta.get("traceparent") if meta else None
+        if traceparent:
+            props["traceparent"] = str(traceparent)
+            trace_id, span_id = _trace_ids(traceparent)
+            if trace_id:
+                props["trace_id"] = trace_id
+            if span_id:
+                props["span_id"] = span_id
+
+        request_id = getattr(ctx, "request_id", None)
+        if request_id is not None:
+            props["mcp_request_id"] = str(request_id)
+    except Exception:
+        pass
+    return props
+
+
+# Props of the request currently being served. The contextvar is the precise
+# per-request channel; the module-level mirror covers tool bodies the SDK runs
+# on a worker thread without context propagation (stdio serves one request at
+# a time, so last-set is accurate there).
+_REQUEST_PROPS = contextvars.ContextVar("wikipedia_request_props", default=None)
+_REQUEST_PROPS_FALLBACK = {"props": None}
+
+
+def set_request_props(props):
+    """Called by the server middleware at the start of each request."""
+    _REQUEST_PROPS_FALLBACK["props"] = props or None
+    return _REQUEST_PROPS.set(props or None)
+
+
+def clear_request_props(token):
+    """Called by the server middleware when the request finishes."""
+    _REQUEST_PROPS_FALLBACK["props"] = None
+    try:
+        _REQUEST_PROPS.reset(token)
+    except Exception:
+        pass
+
+
+def _current_request_props():
+    return _REQUEST_PROPS.get() or _REQUEST_PROPS_FALLBACK["props"]
+
+
 def client_supports_url_elicitation() -> bool:
     """True if the handshake advertised URL-mode elicitation (elicitation.url).
     Read from the raw capabilities we capture; used to offer guided-navigation
@@ -443,6 +554,10 @@ def send_telemetry(event: str, properties: dict | None = None):
     if TELEMETRY_DISABLED:
         return
 
+    # Snapshot on the CALLER's thread: the daemon sender starts with an empty
+    # contextvar context, so per-request props must be captured here.
+    request_props = _current_request_props()
+
     def _send():
         try:
             props = {
@@ -459,6 +574,9 @@ def send_telemetry(event: str, properties: dict | None = None):
                 "discovery_channel": DISCOVERY_CHANNEL,
                 "raw_env": ENV_SIGNALS,  # the raw clues behind run_context/agent_name
                 "session_id": SESSION_ID,
+                # Per-request protocol capture wins over stored handshake state
+                # (Standard §3); explicit event properties win over both.
+                **(request_props or {}),
                 **(properties or {}),
             }
             if INTERNAL_RUN:
@@ -515,6 +633,8 @@ def send_telemetry(event: str, properties: dict | None = None):
 
 def _track_version_change():
     """Emit package_download once per version (PyPI has no install hook)."""
+    if TELEMETRY_DISABLED:  # never write ~/.wikipedia_mcp when opted out
+        return
     try:
         version_file = Path.home() / ".wikipedia_mcp" / "last_run_version"
         previous = version_file.read_text(encoding="utf-8").strip() if version_file.exists() else None

@@ -12,6 +12,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from html import unescape
 from html.parser import HTMLParser
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
@@ -232,22 +233,36 @@ async def _telemetry_middleware(ctx, call_next):
     ServerRequestContext directly. Responsibilities:
       1. expose the request to per-request telemetry via _CURRENT_REQUEST
       2. capture client identity (dual-era: handshake session OR per-request _meta)
-      3. fire tools_listed once — the 'connected but never called a tool' signal
+      3. per-request protocol capture (clientInfo/protocolVersion/capabilities
+         from _meta, traceparent/trace_id/span_id, mcp_request_id) — merged
+         into every event fired while this request is served, winning over
+         stored handshake state (Standard §3)
+      4. fire tools_listed once — the 'connected but never called a tool' signal
     """
     _CURRENT_REQUEST.set(ctx)
     try:
         telemetry.capture_client_info(ctx)
     except Exception:
         pass
+    req_token = None
+    try:
+        req_token = telemetry.set_request_props(telemetry.capture_request(ctx))
+    except Exception:
+        pass
     try:
         if getattr(ctx, "method", None) == "tools/list" and not _TOOLS_LISTED["fired"]:
             _TOOLS_LISTED["fired"] = True
             telemetry.send_telemetry("tools_listed", {
+                "tool_count": len(await mcp.list_tools()),
                 "seconds_since_boot": round(time.time() - _BOOT_TS, 1),
             })
     except Exception:
         pass
-    return await call_next(ctx)
+    try:
+        return await call_next(ctx)
+    finally:
+        if req_token is not None:
+            telemetry.clear_request_props(req_token)
 
 
 mcp.middleware.append(_telemetry_middleware)
@@ -431,6 +446,70 @@ def get_page(title: str) -> str:
         return json.dumps(client.get_page(title), ensure_ascii=False, indent=2)
     except Exception as e:
         return json.dumps({"error": f"Failed to get page: {e}"}, ensure_ascii=False, indent=2)
+
+
+# Skills loop (Standard §6): runtime-fetched usage guidance — updatable without
+# a release, reaches the whole deployed fleet. Pinned to THIS repo's skills/
+# dir on GitHub; never configurable. Allowlisted names only (no path input).
+_SKILLS_BASE_URL = "https://raw.githubusercontent.com/surendranb/wikipedia-mcp-server/main/skills/"
+_SKILLS_DIR = Path(__file__).resolve().parent / "skills"
+_SKILLS = {
+    "interpreting-errors": "How to read this server's error and empty-result shapes and recover from them.",
+}
+
+
+@mcp.tool()
+@with_telemetry
+def skills_list() -> str:
+    """List usage skills for this server. Read one with skill_read(name) whenever
+    a tool returns an error or an empty result and the next step is unclear."""
+    return json.dumps(
+        [{"name": name, "description": desc} for name, desc in _SKILLS.items()],
+        ensure_ascii=False, indent=2,
+    )
+
+
+@mcp.tool()
+@with_telemetry
+def skill_read(name: str) -> str:
+    """Read a usage skill (markdown) by name — see skills_list for names.
+    Read 'interpreting-errors' after any error or empty result to recover."""
+    if not isinstance(name, str) or name not in _SKILLS:
+        return json.dumps(
+            {"error": f"Unknown skill {name!r}. Available: {sorted(_SKILLS)}"},
+            ensure_ascii=False, indent=2,
+        )
+
+    content: str | None = None
+    fetch_ok = False
+    try:
+        resp = requests.get(
+            f"{_SKILLS_BASE_URL}{name}.md",
+            timeout=5,
+            headers={"User-Agent": f"wikipedia-mcp-server/{telemetry.MCP_SERVER_VERSION}"},
+        )
+        if resp.status_code == 200 and resp.text.strip():
+            content = resp.text
+            fetch_ok = True
+    except Exception:
+        pass
+
+    if content is None:  # offline / GitHub down: bundled copy when running from a checkout
+        try:
+            local = _SKILLS_DIR / f"{name}.md"
+            if local.is_file():
+                content = local.read_text(encoding="utf-8")
+        except Exception:
+            pass
+
+    telemetry.send_telemetry("skill_read", {"skill_name": name, "fetch_ok": fetch_ok})
+
+    if content is None:
+        return json.dumps(
+            {"error": f"Skill {name!r} is unavailable right now (fetch failed, no local copy)."},
+            ensure_ascii=False, indent=2,
+        )
+    return content
 
 
 def main() -> None:

@@ -65,7 +65,7 @@ For development:
 git clone https://github.com/surendranb/wikipedia-mcp-server.git
 cd wikipedia-mcp-server
 python3 -m venv .venv
-source .venv/bin/source
+source .venv/bin/activate
 pip install -e .
 ```
 
@@ -95,6 +95,24 @@ Specify the `wikipedia-mcp-server` command in your MCP settings.
 ## Example Prompts
 - "Search for 'photosynthesis light dependent reactions' and summarize the top 3 candidates."
 - "What molecules are produced during the light-dependent reactions of photosynthesis? Search first, then fetch only the relevant section."
+
+## Telemetry & Privacy
+
+This server collects **anonymous usage telemetry** (like GA4 MCP and other sibling servers) so we can find and fix where the tools fall short: a random, resettable installation UUID, server version, OS, Python version, agent/client name, tool name, latency, result size, and error category. It goes through a Cloudflare Worker gateway that strips IPs and honors Do-Not-Track. **No search queries, no page titles, no page content, no PII, no IPs** — ever.
+
+Opt out any time — any one of these works:
+
+```bash
+export WIKIPEDIA_MCP_TELEMETRY=false
+# or
+export DISABLE_TELEMETRY=1
+# or
+export DO_NOT_TRACK=1
+# or
+export NO_TELEMETRY=1
+```
+
+When opted out, nothing is sent and no local state is written (no `~/.wikipedia_mcp/` files, no process inspection). Delete `~/.wikipedia_mcp/` at any time to reset the anonymous installation id.
 
 ## Development
 
