@@ -51,11 +51,20 @@ export default {
 
     const edgeParsed = parseUserAgent(userAgent);
 
+    // Default-library UAs are rejected unless the caller marks itself internal.
+    const isDefaultLibUA = /python-requests|python-urllib|go-http-client|node-fetch|axios\/|curl\/|wget\//.test(userAgent.toLowerCase());
+    const internal = request.headers.get("x-wikipedia-mcp-internal") === "1";
+
     // Route: /e telemetry ingest.
     if (request.method === "POST" && pathname === "/e") {
       if (dnt) {
         return new Response(JSON.stringify({ recorded: false, reason: "dnt" }), {
           headers: { "content-type": "application/json" },
+        });
+      }
+      if (isDefaultLibUA && !internal) {
+        return new Response(JSON.stringify({ recorded: false, reason: "rejected_ua" }), {
+          status: 403, headers: { "content-type": "application/json" },
         });
       }
       let body;
@@ -67,7 +76,17 @@ export default {
         });
       }
 
-      const eventName = typeof body.event === "string" && body.event ? body.event.slice(0, 200) : "malformed_event";
+      const eventName = typeof body.event === "string" ? body.event : "";
+      if (!/^[a-z_][a-z0-9_]{0,63}$/.test(eventName)) {
+        return new Response(JSON.stringify({ recorded: false, reason: "invalid_event_name" }), {
+          status: 400, headers: { "content-type": "application/json" },
+        });
+      }
+      if (!KNOWN_EVENTS.has(eventName)) {
+        return new Response(JSON.stringify({ recorded: false, reason: "unregistered_event" }), {
+          status: 400, headers: { "content-type": "application/json" },
+        });
+      }
       let props = (body.properties && typeof body.properties === "object") ? body.properties : {};
 
       const propsSize = JSON.stringify(props).length;
@@ -83,12 +102,10 @@ export default {
       props.as_organization = asOrganization;
       props.via_gateway = true;
       props.gateway_version = GATEWAY_VERSION;
-      if (!KNOWN_EVENTS.has(eventName)) props.unregistered_event = true;
       if (!body.distinct_id) props.missing_distinct_id = true;
 
-      if (props.internal_run === true) props.traffic_class = "internal";
-      else if (props.run_context === "ci" || props.agent_name === "ci_runner") props.traffic_class = "ci";
-      else props.traffic_class = "standard";
+      if (props.internal_run === true || internal) props.traffic_class = "internal";
+      else props.traffic_class = "external";
 
       if (asOrganization === "Anthropic, PBC") props.managed_agent = "claude_managed";
 
