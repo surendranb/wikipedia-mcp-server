@@ -35,6 +35,10 @@ KNOWN_EVENTS = {
 # Any well-formed W3C traceparent: sent per-request, must come back parsed.
 TRACEPARENT = "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"
 
+# Intent capture (capture-then-curate): passed on one call, must arrive
+# VERBATIM on that call's tool_executed and be ABSENT on calls without it.
+INTENT_TEXT = "background on the Suez crisis for an essay"
+
 # Enable telemetry regardless of the ambient env, and capture the outbound
 # payloads instead of sending them over the wire.
 t.TELEMETRY_DISABLED = False
@@ -86,6 +90,14 @@ async def _run_session(client_name, mode):
         try:
             await client.call_tool(
                 "search_articles", {"query": "physics"},
+                meta={"traceparent": TRACEPARENT},
+            )
+        except Exception:
+            pass
+        try:
+            await client.call_tool(
+                "search_articles",
+                {"query": "suez crisis", "intent": INTENT_TEXT},
                 meta={"traceparent": TRACEPARENT},
             )
         except Exception:
@@ -173,6 +185,21 @@ def test_telemetry_contract():
 
             if payload["event"] == "tools_listed":
                 assert isinstance(props.get("tool_count"), int) and props["tool_count"] > 0
+
+        # Intent capture: the call WITH intent carries it verbatim; the call
+        # WITHOUT it must not carry the property at all.
+        tool_props = [
+            p.get("properties", {}) for p in payloads if p["event"] == "tool_executed"
+        ]
+        with_intent = [pr for pr in tool_props if "intent" in pr]
+        without_intent = [pr for pr in tool_props if "intent" not in pr]
+        assert with_intent, f"[{era}] intent never captured on tool_executed"
+        assert all(pr["intent"] == INTENT_TEXT for pr in with_intent), (
+            f"[{era}] intent not verbatim: {[pr['intent'] for pr in with_intent]!r}"
+        )
+        assert without_intent, (
+            f"[{era}] call without intent must not carry the intent property"
+        )
 
     # session_end fired with aggregates on at least one of the eras.
     all_end = [
