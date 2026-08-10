@@ -25,11 +25,14 @@ os.environ.setdefault("WIKIPEDIA_MCP_INTERNAL", "1")
 import telemetry as t
 
 # Mirror of the gateway worker's KNOWN_EVENTS (Standard §2 allowlist).
+# `prompt_used` (Protocol Surfaces S6) is new here and NOT yet in the deployed
+# worker's set — the worker is accept-and-tag so events flow regardless;
+# register it there on the next (separate, human-approved) worker deploy.
 KNOWN_EVENTS = {
     "mcp_started", "tools_listed", "tool_executed", "session_end",
     "server_first_install", "package_download", "skill_tip_shown",
     "skill_read", "resource_read", "install_intent", "install_completed",
-    "surface_click", "mcp_tool_count", "server_discovered",
+    "surface_click", "mcp_tool_count", "server_discovered", "prompt_used",
 }
 
 # Any well-formed W3C traceparent: sent per-request, must come back parsed.
@@ -252,6 +255,144 @@ def test_skill_read_offline_fallback():
         assert reads[0]["properties"]["fetch_ok"] is False
 
     asyncio.run(_go())
+
+
+def test_protocol_surfaces_dual_era():
+    """Protocol Surfaces v1 (S1/S2/S3/S5/S6) against a real client in BOTH eras:
+    - S1: every tool carries readOnlyHint/idempotentHint; openWorldHint marks
+      external-API tools (skills_list alone is local-only).
+    - S2: search_articles declares the real result shape; structuredContent is
+      additive and the TEXT content is byte-identical to the legacy format.
+    - S3: user-fixable errors carry versioned briefs, tagged brief_version on
+      that call's tool_executed; get_page's missing-page EMPTY SUCCESS gets a
+      one-line embedded tip at most once per process.
+    - S5: skills mirrored as skill:// resources, firing resource_read.
+    - S6: three workflow prompts, each fetch firing prompt_used.
+    All stubs sit at the WikipediaClient boundary — no live Wikipedia calls."""
+
+    stub_results = [{"title": "Test", "snippet": "stub"}]
+    c.client.search_articles = lambda query, limit=5: stub_results
+    c.client.get_toc = lambda title: [{"index": "0", "line": "Introduction", "anchor": "Introduction"}]
+    c.client.get_page = lambda title: {"title": title, "text": ""}  # missing page: empty success
+
+    def _summaries_404(titles):
+        raise RuntimeError(
+            "Unable to fetch summary for 'Nonexistent': 404 Client Error: Not Found for url: u"
+        )
+
+    c.client.get_summaries = _summaries_404
+
+    # The exact text a legacy client received before this change (json.dumps,
+    # ensure_ascii=False, indent=2) — S2 must not alter a single byte of it.
+    expected_search_text = json.dumps(stub_results, ensure_ascii=False, indent=2)
+    expected_toc_text = json.dumps(
+        [{"index": "0", "line": "Introduction", "anchor": "Introduction"}],
+        ensure_ascii=False, indent=2,
+    )
+
+    async def _go(mode):
+        _PAYLOADS.clear()
+        c._TIPS_FIRED.clear()  # per-era reset for the once-per-process tip gate
+        async with Client(
+            c.mcp, client_info=Implementation(name="claude-code", version="9.9.9"), mode=mode
+        ) as client:
+            # --- S1 + S2: tools/list ---
+            tools = (await client.list_tools()).tools
+            assert len(tools) == 7, [t.name for t in tools]
+            for t_ in tools:
+                ann = t_.annotations
+                assert ann is not None, f"{t_.name}: no annotations (S1)"
+                assert ann.read_only_hint is True, f"{t_.name}: readOnlyHint"
+                assert ann.idempotent_hint is True, f"{t_.name}: idempotentHint"
+                expected_open_world = t_.name != "skills_list"
+                assert ann.open_world_hint is expected_open_world, f"{t_.name}: openWorldHint"
+            search = next(t_ for t_ in tools if t_.name == "search_articles")
+            schema_props = (search.output_schema or {}).get("properties", {})
+            assert "results" in schema_props and "error" in schema_props, (
+                f"S2 outputSchema wrong: {search.output_schema}"
+            )
+
+            # --- S2: byte-identical text + additive structuredContent ---
+            r = await client.call_tool("search_articles", {"query": "physics"})
+            assert r.content[0].text == expected_search_text, (
+                f"S2 broke the text wire format:\n{r.content[0].text!r}\n!=\n{expected_search_text!r}"
+            )
+            assert r.structured_content == {"results": stub_results}
+            assert not r.is_error
+
+            # Unchanged path stays byte-identical (no schema, no brief).
+            r_toc = await client.call_tool("get_toc", {"title": "Photosynthesis"})
+            assert r_toc.content[0].text == expected_toc_text
+
+            # --- S3: missing-page brief on a 404-shaped failure ---
+            r_sum = await client.call_tool("get_summaries", {"titles": ["Nonexistent"]})
+            err = json.loads(r_sum.content[0].text)["error"]
+            assert "search_articles" in err and "won't help" in err, err
+
+            # --- S3: get_page missing page = empty success + ONE embedded tip ---
+            r_page1 = await client.call_tool("get_page", {"title": "Nonexistent"})
+            page1 = json.loads(r_page1.content[0].text)
+            assert page1["text"] == "" and "tip" in page1, page1
+            assert "\n" not in page1["tip"], "tip must be one line"
+            r_page2 = await client.call_tool("get_page", {"title": "Nonexistent"})
+            page2 = json.loads(r_page2.content[0].text)
+            assert "tip" not in page2, "tip must fire at most once per process per trigger"
+
+            # --- S5: skill resources ---
+            resources = (await client.list_resources()).resources
+            uris = {str(x.uri) for x in resources}
+            assert "skill://interpreting-errors" in uris, uris
+            rr = await client.read_resource("skill://interpreting-errors")
+            assert "Interpreting errors" in rr.contents[0].text
+
+            # --- S6: prompts ---
+            prompts = (await client.list_prompts()).prompts
+            assert {p.name for p in prompts} == {
+                "research-a-topic", "verify-a-claim", "compare-articles",
+            }
+            gp = await client.get_prompt("research-a-topic", {"topic": "Suez crisis"})
+            text = gp.messages[0].content.text
+            assert "search_articles" in text and "intent" in text and "interpreting-errors" in text
+
+        t._drain_pending_sends(3.0)
+        return list(_PAYLOADS)
+
+    for era, mode in (("legacy", "legacy"), ("2026-era", "auto")):
+        payloads = asyncio.run(_go(mode))
+        events = {}
+        for p in payloads:
+            events.setdefault(p["event"], []).append(p.get("properties", {}))
+
+        for p in payloads:
+            assert p["event"] in KNOWN_EVENTS, f"[{era}] unregistered event: {p['event']}"
+
+        # brief_version lands on the erroring call's tool_executed (S3).
+        sum_events = [pr for pr in events.get("tool_executed", []) if pr.get("tool_name") == "get_summaries"]
+        assert sum_events and sum_events[0].get("brief_version") == "wiki-missing-page-v1", sum_events
+        assert sum_events[0].get("status") == "error"
+
+        page_events = [pr for pr in events.get("tool_executed", []) if pr.get("tool_name") == "get_page"]
+        assert page_events[0].get("brief_version") == "wiki-missing-page-v1", page_events
+        assert page_events[0].get("rows_returned") == 0
+        assert "brief_version" not in page_events[1], "second call carried no tip, no tag"
+
+        # Clean calls never carry brief_version.
+        search_events = [pr for pr in events.get("tool_executed", []) if pr.get("tool_name") == "search_articles"]
+        assert search_events and "brief_version" not in search_events[0]
+
+        # skill_tip_shown for the embedded tip (S3 delivery telemetry).
+        tips = events.get("skill_tip_shown", [])
+        assert len(tips) == 1 and tips[0].get("trigger") == "missing_page", tips
+        assert tips[0].get("channel") == "embedded_tip"
+
+        # resource_read with resource_uri (S5).
+        reads = events.get("resource_read", [])
+        assert reads and reads[0].get("resource_uri") == "skill://interpreting-errors", reads
+
+        # prompt_used with prompt_name/has_args (S6).
+        used = events.get("prompt_used", [])
+        assert used and used[0].get("prompt_name") == "research-a-topic", used
+        assert used[0].get("has_args") is True
 
 
 def test_optout_gates_all_side_effects():
