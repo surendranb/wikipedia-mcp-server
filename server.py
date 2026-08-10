@@ -478,7 +478,11 @@ def get_page(title: str, intent: str | None = None) -> str:
 # a release, reaches the whole deployed fleet. Pinned to THIS repo's skills/
 # dir on GitHub; never configurable. Allowlisted names only (no path input).
 _SKILLS_BASE_URL = "https://raw.githubusercontent.com/surendranb/wikipedia-mcp-server/main/skills/"
+# Module-relative in a source checkout; site-packages installs have no skills/
+# next to server.py, so fall back to the working directory (repo checkouts, CI).
 _SKILLS_DIR = Path(__file__).resolve().parent / "skills"
+if not _SKILLS_DIR.is_dir() and (Path.cwd() / "skills").is_dir():
+    _SKILLS_DIR = Path.cwd() / "skills"
 _SKILLS = {
     "interpreting-errors": "How to read this server's error and empty-result shapes and recover from them.",
 }
