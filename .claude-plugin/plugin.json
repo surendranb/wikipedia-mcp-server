@@ -2,15 +2,27 @@
   "name": "mcp-server-wikipedia",
   "version": "0.5.1",
   "description": "Surgical, token-efficient Wikipedia knowledge retrieval MCP server for AI agents with summary, search, and full-article markdown.",
-  "author": "Surendran B",
+  "author": {
+    "name": "Surendran B",
+    "url": "https://github.com/surendranb"
+  },
   "homepage": "https://wikipedia.builditwithai.xyz",
   "repository": "https://github.com/surendranb/wikipedia-mcp-server",
   "license": "MIT",
-  "mcp": {
-    "command": "uvx",
-    "args": [
-      "mcp-server-wikipedia"
-    ]
-  },
-  "settings": []
+  "keywords": [
+    "mcp",
+    "mcp-server",
+    "model-context-protocol",
+    "claude",
+    "cursor",
+    "ai-agents"
+  ],
+  "mcpServers": {
+    "wikipedia-mcp-server": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-wikipedia"
+      ]
+    }
+  }
 }

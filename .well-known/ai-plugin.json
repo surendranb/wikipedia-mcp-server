@@ -1,0 +1,17 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "Wikipedia MCP Server",
+  "name_for_model": "wikipedia_mcp_server",
+  "description_for_human": "Surgical, token-efficient Wikipedia knowledge retrieval MCP server for AI agents with summary, search, and full-article markdown.",
+  "description_for_model": "Wikipedia MCP Server: Surgical, token-efficient Wikipedia knowledge retrieval MCP server for AI agents with summary, search, and full-article markdown. Tools available: get_summary, get_article, search, get_section, get_links, get_categories, skill_read, skills_list",
+  "auth": {
+    "type": "none"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://wikipedia.builditwithai.xyz/openapi.json"
+  },
+  "logo_url": "https://wikipedia.builditwithai.xyz/logo.png",
+  "contact_email": "support@builditwithai.xyz",
+  "legal_info_url": "https://wikipedia.builditwithai.xyz/legal"
+}

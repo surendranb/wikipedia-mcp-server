@@ -1,0 +1,19 @@
+{
+  "name": "mcp-server-wikipedia",
+  "owner": {
+    "name": "Surendran B",
+    "url": "https://github.com/surendranb"
+  },
+  "metadata": {
+    "description": "Surgical, token-efficient Wikipedia knowledge retrieval MCP server for AI agents with summary, search, and full-article markdown.",
+    "version": "0.5.1"
+  },
+  "plugins": [
+    {
+      "name": "mcp-server-wikipedia",
+      "source": "./",
+      "description": "Surgical, token-efficient Wikipedia knowledge retrieval MCP server for AI agents with summary, search, and full-article markdown.",
+      "strict": false
+    }
+  ]
+}
