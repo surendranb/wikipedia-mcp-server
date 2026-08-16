@@ -1,79 +1,66 @@
-# AGENTS.md — Agent Operational Manual
+# AGENTS.md — Codebase Operational Guide for AI Agents
 
-> **Canonical context and operating procedures for AI agents (Claude Code, Cursor, Codex, Gemini, Antigravity, OpenCode, Aider) operating on or integrating `wikipedia-mcp-server`.**
-
----
-
-## 1. System Identity & Mission
-
-- **Repository**: `surendranb/wikipedia-mcp-server`
-- **Package Name**: `mcp-server-wikipedia` (PyPI) / `mcp-server-wikipedia` (NPM)
-- **Live Portal**: [https://wikipedia.builditwithai.xyz](https://wikipedia.builditwithai.xyz)
-- **Purpose**: Surgical, token-efficient Wikipedia knowledge retrieval MCP server for AI agents with summary, search, and full-article markdown.
+> **Context, architecture, file map, and execution commands for AI coding agents (Claude Code, Cursor, Codex, Gemini, Antigravity, OpenCode, Aider) working on `wikipedia-mcp-server`.**
 
 ---
 
-## 2. Quickstart & Invocation for Agents
+## 1. Codebase Overview
 
-Agents integrating or executing this server should use stdio transport via either runtime:
+- **Language & Runtime**: Python 3.10+ (`mcp` FastMCP, `httpx`, `beautifulsoup4`, `pydantic`).
+- **Package Name**: `mcp-server-wikipedia` (PyPI) / `mcp-server-wikipedia` (NPM thin wrapper).
+- **Core Function**: Surgical, token-efficient Wikipedia knowledge retrieval for AI agents: lead summaries, full article bodies in clean Markdown, live search, section extraction, and taxonomy navigation.
 
-```bash
-# Python runtime (FastMCP / stdio)
-uvx mcp-server-wikipedia
+---
 
-# Universal 1-line auto-installer
-curl -fsSL "https://wikipedia.builditwithai.xyz/install" | bash
+## 2. Directory & File Map
+
 ```
-
-### Environment Variables
-- None required (Zero configuration needed).
-
-
----
-
-## 3. Tool Reference & Capabilities
-
-| Tool | Capability Summary |
-|---|---|
-| `get_summary` | Fetches concise factual lead summary. |
-| `get_article` | Fetches complete article formatted in clean Markdown. |
-| `search` | Searches articles with autocomplete and ranking. |
-| `get_section` | Retrieves specific section by title. |
-| `get_links` | Extracts outgoing cross-references. |
-| `get_categories` | Lists article taxonomic categories. |
-| `skill_read` | Loads research playbooks dynamically from GitHub. |
-| `skills_list` | Lists all available Wikipedia research skills. |
-
----
-
-## 4. Agent Working Laws (Operational Rules)
-
-When contributing code, diagnosing bugs, or modifying this repository, all visiting agents must adhere strictly to these rules:
-
-1. **Truth Over Guessing**: Never fabricate responses, schema types, or error reasons. Run native verification scripts before asserting completion.
-2. **Shortest Working Diff (Lazy Senior Dev)**: Do not introduce unrequested abstractions, extra dependencies, or architectural bloat. Standard library and native platform features first.
-3. **Preserve Schema Stability**: Never remove or rename existing MCP tool parameters without strict backwards-compatibility layers.
-4. **Strict Telemetry Boundaries**: Diagnostic telemetry is non-PII and strictly opt-out. Never log user queries, credentials, file contents, or environment variables. Honor `DO_NOT_TRACK=1` and `MCP_TELEMETRY_OPT_OUT=1`.
-5. **No Direct Main Commits**: Always create a feature or fix branch before modifying code.
-
----
-
-## 5. Verification & Test Protocol
-
-Before marking any task as complete in this repository, run the test suite:
-
-```bash
-# Run automated verification suite
-uv run pytest -v || python3 -m unittest
+wikipedia-mcp-server/
+├── src/wikipedia_mcp/
+│   ├── __init__.py            # Package export
+│   ├── server.py              # FastMCP server, tool implementations (get_summary, get_article, search, etc.)
+│   ├── client.py              # Wikipedia REST API v1 client with HTTP caching and user-agent headers
+│   └── telemetry.py           # Edge Schema v2 telemetry client
+├── npm/                       # Thin Node.js CLI launcher
+│   ├── bin/index.js           # Subprocess wrapper spawning uvx mcp-server-wikipedia
+│   └── package.json           # NPM package metadata
+├── tests/                     # Unit and integration test suite
+│   ├── test_server.py         # FastMCP tool interface tests
+│   ├── test_client.py         # HTTP client & Wikipedia API parsing tests
+│   └── test_telemetry.py      # Telemetry & DNT opt-out tests
+├── pyproject.toml             # Python packaging metadata (mcp-server-wikipedia)
+├── smithery.yaml              # Smithery.ai marketplace configuration
+├── server.json                # Official MCP registry specification
+├── gemini-extension.json      # Google Gemini / Antigravity extension manifest
+├── .claude-plugin/            # Claude Code plugin manifests (plugin.json, marketplace.json)
+└── .well-known/ai-plugin.json # OpenAI / ChatGPT Actions manifest
 ```
 
 ---
 
-## 6. Plugin & Marketplace Discovery Pointers
+## 3. Development & Testing Commands
 
-- **Claude Code**: `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
-- **Gemini CLI / Antigravity**: `gemini-extension.json`
-- **Smithery.ai**: `smithery.yaml`
-- **Official MCP Registry & Glama**: `server.json`
-- **OpenAI / ChatGPT Actions**: `.well-known/ai-plugin.json`
-- **AI Search Crawlers (GEO)**: `llms.txt`
+```bash
+# Install dependencies in editable mode
+uv sync || pip install -e ".[dev]"
+
+# Run the MCP server locally in stdio mode
+uv run python -m wikipedia_mcp.server
+
+# Run the test suite
+uv run pytest tests/ -v
+
+# Run linting checks
+uv run ruff check .
+```
+
+---
+
+## 4. Tool Implementation Invariants & Gotchas
+
+1. **Wikipedia API Guidelines (`client.py`)**:
+   - Requests to Wikimedia APIs MUST send a descriptive `User-Agent` header (e.g. `WikipediaMCP/0.5.1 (https://github.com/surendranb/wikipedia-mcp-server; contact@builditwithai.xyz)`). Anonymous requests without a User-Agent are blocked with HTTP 403.
+2. **HTML to Clean Markdown Transformation**:
+   - `get_article` and `get_section` strip navigation boxes, citation tags (`[1]`), edit links, and infobox bloat to minimize token usage for the LLM.
+3. **Disambiguation Handling**:
+   - When a query hits a disambiguation page, return a clear list of disambiguation options with exact page titles.
