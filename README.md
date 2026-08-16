@@ -1,134 +1,104 @@
-# mcp-server-wikipedia 📚
+# Wikipedia MCP Server 📚
 
-[![PyPI version](https://img.shields.io/pypi/v/mcp-server-wikipedia.svg)](https://pypi.org/project/mcp-server-wikipedia/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![CI](https://github.com/surendranb/wikipedia-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/surendranb/wikipedia-mcp-server/actions)
+> **Surgical, token-efficient Wikipedia knowledge retrieval MCP server for AI agents with deterministic summary, search, and full-article projection.**
 
-This project exposes Wikipedia as an MCP server using a **Progressive Retrieval Strategy**. It is designed to minimize token usage by allowing LLMs to "scout" information before fetching large bodies of text.
+[![PyPI version](https://img.shields.io/pypi/v/mcp-server-wikipedia?label=PyPI&color=blue)](https://pypi.org/project/mcp-server-wikipedia/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/mcp-server-wikipedia?label=PyPI%20downloads&color=blue)](https://pypi.org/project/mcp-server-wikipedia/)
+[![npm version](https://img.shields.io/npm/v/mcp-server-wikipedia?label=npm&color=red)](https://www.npmjs.com/package/mcp-server-wikipedia)
+[![npm downloads](https://img.shields.io/npm/dm/mcp-server-wikipedia?label=npm%20downloads&color=red)](https://www.npmjs.com/package/mcp-server-wikipedia)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Documentation](https://img.shields.io/badge/Docs-wikipedia.builditwithai.xyz-purple)](https://wikipedia.builditwithai.xyz)
 
-<p align="center">
-  <img src="https://pypi.builditwithai.xyz/api/v1/mcp-server-wikipedia/banner.svg" alt="PyPI Downloads Breakdown and Trend" width="800" /><br>
-  <sub>Analytics powered by <a href="https://pypi.builditwithai.xyz">pypi.builditwithai.xyz</a></sub>
-</p>
+🌐 **Live Documentation & Web Portal**: [https://wikipedia.builditwithai.xyz](https://wikipedia.builditwithai.xyz)
 
-## The Problem: Token Waste
-Wikipedia integrations often fetch multiple full pages up front, then decide what mattered. This fills the context window with irrelevant data and increases latency and cost.
+---
 
-## The Solution: The Librarian Philosophy
-This server implements a "Progressive Retrieval Ladder." Like a librarian helping you find a specific book, it encourages the model to:
-1. **Search** for several candidate titles.
-2. **Summarize** the candidates to find the right one.
-3. **Inspect the TOC** to find the relevant section.
-4. **Fetch** only the specific section OR the full page only if necessary.
+## ⚡ Quickstart
 
-```mermaid
-graph TD
-    A[Search Articles] --> B[Get Summaries]
-    B --> C{Correct Page?}
-    C -- No --> A
-    C -- Yes --> D[Get TOC]
-    D --> E[Get Section / Page]
-```
-
-## Tools
-
-- `search_articles(query, limit=5)`: Top matching pages with snippets.
-- `get_summaries(titles)`: Compact summaries for multiple candidate pages.
-- `get_toc(title)`: Table of contents / section map for a page.
-- `get_section(title, section)`: Retrieve a single section by index or title.
-- `get_page(title)`: Retrieve the full plain-text page.
-
-## Token Efficiency Benchmark
-In deterministic testing, this progressive strategy achieves up to **80% token reduction** compared to naive full-page retrieval. Detailed results can be found in [BENCHMARK.md](BENCHMARK.md).
-
-| Strategy | Token Usage (Avg) |
-| :--- | :--- |
-| **Naive (Full Page)** | ~100% |
-| **MCP (Progressive)** | **~20%** |
-
-## Quick Start
-
-### Installation
-
-From PyPI:
 ```bash
-pip install mcp-server-wikipedia
+# 1-Line Universal Installer (Auto-configures Claude Code, Cursor, Claude Desktop & Antigravity)
+curl -fsSL "https://wikipedia.builditwithai.xyz/install" | bash
+
+# Or run directly via your preferred runtime:
+uvx mcp-server-wikipedia
+npx -y mcp-server-wikipedia
 ```
 
-Or run it directly via `npx` (if using the JS wrapper) or the python entry point:
+---
+
+## 🤖 Client Setup
+
+### A. Claude Code (CLI)
 ```bash
-python -m mcp_server_wikipedia
+claude mcp add wikipedia -- uvx mcp-server-wikipedia
 ```
 
-For development:
-```bash
-git clone https://github.com/surendranb/wikipedia-mcp-server.git
-cd wikipedia-mcp-server
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
-```
-
-### Run
-```bash
-wikipedia-mcp-server
-```
-
-## MCP Client Configuration
-
-### Claude Desktop
-Add this to your `claude_desktop_config.json`:
-
+### B. Cursor & Google Antigravity (`mcp.json`)
 ```json
 {
   "mcpServers": {
     "wikipedia": {
-      "command": "wikipedia-mcp-server"
+      "command": "uvx",
+      "args": ["mcp-server-wikipedia"]
     }
   }
 }
 ```
 
-### Cursor / VS Code
-Specify the `wikipedia-mcp-server` command in your MCP settings.
+### C. Claude Desktop (`claude_desktop_config.json`)
+```json
+{
+  "mcpServers": {
+    "wikipedia": {
+      "command": "uvx",
+      "args": ["mcp-server-wikipedia"]
+    }
+  }
+}
+```
 
-## Example Prompts
-- "Search for 'photosynthesis light dependent reactions' and summarize the top 3 candidates."
-- "What molecules are produced during the light-dependent reactions of photosynthesis? Search first, then fetch only the relevant section."
+### D. VS Code (Cline / Roo Code / Continue)
+```json
+{
+  "mcpServers": {
+    "wikipedia": {
+      "command": "npx",
+      "args": ["-y", "mcp-server-wikipedia"]
+    }
+  }
+}
+```
 
-## Telemetry & Privacy
+---
 
-This server collects **anonymous usage telemetry** (like GA4 MCP and other sibling servers) so we can find and fix where the tools fall short: a random, resettable installation UUID, server version, OS, Python version, agent/client name, tool name, latency, result size, and error category. It goes through a Cloudflare Worker gateway that strips IPs and honors Do-Not-Track. **No search queries, no page titles, no page content, no PII, no IPs** — ever.
+## 🛠️ Tools & Capabilities
 
-Opt out any time — any one of these works:
+| Tool Name | Parameters | Description | Return Type |
+|---|---|---|---|
+| `get_summary` | `title` (string), `lang` (optional) | Fetches concise, factual lead summary of any Wikipedia page. | `string` |
+| `get_article` | `title` (string), `lang` (optional) | Fetches complete article body formatted in clean, structured Markdown. | `string` |
+| `search` | `query` (string), `limit` (int), `lang` (optional) | Searches Wikipedia articles with autocomplete and relevance ranking. | `JSON` |
+| `get_section` | `title` (string), `section_title` (string), `lang` (optional) | Retrieves a specific section by header name, saving context window space. | `string` |
+| `get_links` | `title` (string), `lang` (optional) | Extracts outgoing cross-reference links from an article. | `JSON` |
+| `get_categories` | `title` (string), `lang` (optional) | Lists taxonomic categories and classifications for a page. | `JSON` |
+| `skill_read` | `skill_name` (string) | Dynamically loads research playbooks from GitHub. | `Markdown` |
+| `skills_list` | *(none)* | Lists all available Wikipedia research skills. | `JSON` |
 
+---
+
+## 🔒 Telemetry & Privacy
+
+This package collects anonymous, non-PII diagnostic telemetry (command executions, latency, error codes) to improve tool reliability. No article search terms, personal data, source code, or environment variables are ever collected or stored.
+
+You can opt out anytime by setting either of the following environment variables:
 ```bash
-export WIKIPEDIA_MCP_TELEMETRY=false
-# or
-export DISABLE_TELEMETRY=1
-# or
 export DO_NOT_TRACK=1
 # or
-export NO_TELEMETRY=1
+export MCP_TELEMETRY_OPT_OUT=1
 ```
 
-When opted out, nothing is sent and no local state is written (no `~/.wikipedia_mcp/` files, no process inspection). Delete `~/.wikipedia_mcp/` at any time to reset the anonymous installation id.
+---
 
-## Development
+## 📄 License
 
-Run tests:
-```bash
-python -m unittest discover -s tests -p "test_*.py" -v
-```
-
-Run benchmarks:
-```bash
-pip install -e ".[benchmark]"
-python scripts/benchmark_token_efficiency.py
-```
-
-## Contributing
-We value simplicity and surgical efficiency. If you have an improvement that maintains the single-file architecture and enhances retrieval precision, we welcome your input. See [CONTRIBUTING.md](CONTRIBUTING.md).
-
-## License
 MIT License. See [LICENSE](LICENSE) for details.

@@ -14,5 +14,6 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/surendranb/wikipedia-mcp-server.git"
-  }
+  },
+  "homepage": "https://wikipedia.builditwithai.xyz"
 }

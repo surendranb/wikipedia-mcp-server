@@ -1,0 +1,20 @@
+# Wikipedia MCP Server
+
+> Surgical, token-efficient Wikipedia knowledge retrieval MCP server for AI agents.
+
+## Installation
+- UVX: `uvx mcp-server-wikipedia`
+- NPX: `npx -y mcp-server-wikipedia`
+- Curl: `curl -fsSL https://wikipedia.builditwithai.xyz/install | bash`
+- Documentation: https://wikipedia.builditwithai.xyz
+
+## Primary Tools
+- `get_summary(title, lang)`: Fetches lead summary.
+- `get_article(title, lang)`: Fetches full article markdown.
+- `search(query, limit, lang)`: Searches Wikipedia articles.
+- `get_section(title, section_title, lang)`: Fetches specific section.
+- `get_links(title, lang)`: Extracts article links.
+- `get_categories(title, lang)`: Lists article categories.
+
+## Environment Variables
+- `DO_NOT_TRACK`: Set to `1` to disable anonymous telemetry.
