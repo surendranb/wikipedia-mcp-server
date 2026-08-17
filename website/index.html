@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Wikipedia MCP Server: Surgical Knowledge Retrieval</title>
+<meta name="description" content="Token-efficient Wikipedia knowledge retrieval MCP server for AI agents with section-level queries and structured JSON returns." />
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  body { font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, sans-serif; }
+  .mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .navitem { display: block; font-size: 13px; padding: 5px 10px; border-radius: 6px; color: #5f6368; text-decoration: none; transition: all 0.15s ease; }
+  .navitem:hover { background: #ecece7; color: #111318; }
+  .kicker { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: #747982; font-weight: 600; }
+  .card { background: #ffffff; border: 1px solid #e5e6e4; border-radius: 10px; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+  .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; font-family: 'JetBrains Mono', monospace; }
+  
+  /* Prose Typography for Markdown content */
+  .article-body h2 { font-size: 1.55rem; font-weight: 800; color: #111318; letter-spacing: -0.025em; margin-top: 1.5rem; margin-bottom: 0.75rem; }
+  .article-body h3 { font-size: 1.05rem; font-weight: 700; color: #111318; letter-spacing: -0.015em; margin-top: 1.25rem; margin-bottom: 0.5rem; }
+  .article-body p { margin-bottom: 1rem; }
+  .article-body ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 1rem; }
+  .article-body ul li { margin-bottom: 0.35rem; }
+  .article-body pre { background: #fbfbfa; border: 1px solid #e5e6e4; border-radius: 8px; padding: 1rem; overflow-x: auto; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.5; color: #474b52; margin: 1rem 0; }
+  .article-body code:not(pre code) { font-family: 'JetBrains Mono', monospace; font-size: 12px; background: #ecece7; padding: 2px 6px; border-radius: 4px; }
+  .article-body a { color: #315cf5; text-decoration: underline; text-underline-offset: 2px; }
+  .article-body hr { border: 0; border-top: 1px solid #e5e6e4; margin: 3.5rem 0; }
+</style>
+</head>
+<body class="bg-[#f6f6f3] text-[#111318] antialiased selection:bg-[#315cf5]/15 selection:text-[#111318]">
+
+<!-- HEADER -->
+<header class="border-b border-[#e5e6e4] bg-[#fbfbfa] sticky top-0 z-40 backdrop-blur-md bg-opacity-95">
+  <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <a href="https://builditwithai.xyz" class="mono text-sm font-bold tracking-tight text-[#111318]">builditwithai<span class="text-[#315cf5]">.xyz</span></a>
+      <span class="text-xs text-[#9aa0a6]">/</span>
+      <span class="mono text-xs text-[#5f6368]">wikipedia-mcp</span>
+    </div>
+    <div class="flex items-center gap-4 text-xs mono text-[#5f6368]">
+      <span class="hidden md:inline">Section-Level Retrieval · Structured JSON · SQLite Caching · Zero Token Waste</span>
+      <a href="https://github.com/surendranb/wikipedia-mcp-server" target="_blank" rel="noreferrer" class="text-[#315cf5] hover:underline font-medium">github/wikipedia-mcp</a>
+    </div>
+  </div>
+</header>
+
+<!-- ARTICLE CONTAINER -->
+<article class="max-w-7xl mx-auto px-6 pt-12 pb-24">
+  
+  <!-- HERO HEADER -->
+  <header class="max-w-4xl mb-12">
+    <div class="flex items-center gap-2 mb-4">
+      <span class="kicker text-[#315cf5]">KNOWLEDGE RETRIEVAL MCP</span>
+      <span class="text-xs text-[#9aa0a6]">·</span>
+      <span class="mono text-xs text-[#747982]">Token-Efficient Encyclopedia</span>
+    </div>
+    
+    <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight text-[#111318] leading-[1.12]">
+      Wikipedia MCP Server: Surgical Knowledge Retrieval
+    </h1>
+    
+    
+    <p class="mt-5 text-xl text-[#5f6368] leading-relaxed font-normal">
+      Let AI agents query the world&#39;s largest encyclopedia without burning context windows. Delivers section-level extracts, summary modes, link graph traversals, and local SQLite caching in structured JSON.
+    </p>
+    
+
+    <!-- METADATA CHIPS -->
+    
+    <div class="mt-6 flex flex-wrap gap-2 text-xs mono text-[#5f6368]">
+      
+      <span class="px-2.5 py-1 bg-[#ecece7] rounded-md">MCP 2.0</span>
+      
+      <span class="px-2.5 py-1 bg-[#ecece7] rounded-md">Section Extraction</span>
+      
+      <span class="px-2.5 py-1 bg-[#ecece7] rounded-md">SQLite Cache</span>
+      
+      <span class="px-2.5 py-1 bg-[#ecece7] rounded-md">PyPI: mcp-server-wikipedia</span>
+      
+      <span class="px-2.5 py-1 bg-[#ecece7] rounded-md">Python Async</span>
+      
+    </div>
+    
+  </header>
+
+  <!-- 2-COLUMN LAYOUT -->
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start">
+    
+    <!-- LEFT SIDEBAR: Table of Contents -->
+    <aside class="hidden lg:block lg:col-span-3 sticky top-20 max-h-[calc(100vh-6rem)] overflow-y-auto pr-2">
+      <nav class="space-y-4 text-xs border-l border-[#e5e6e4] pl-3 py-1">
+        <div class="kicker text-[10px] text-[#9aa0a6] px-2 mb-1">Navigation</div>
+        
+        <a class="navitem" href="#quickstart">1. Quickstart</a>
+        
+        <a class="navitem" href="#the-challenge">2. The Context Waste Challenge</a>
+        
+        <a class="navitem" href="#agent-setup">3. Agent Configuration</a>
+        
+        <a class="navitem" href="#tools-reference">4. Tool &amp; Parameter Reference</a>
+        
+        <a class="navitem" href="#section-queries">5. Surgical Section Queries</a>
+        
+      </nav>
+    </aside>
+
+    <!-- RIGHT MAIN CONTENT -->
+    <div class="lg:col-span-9 max-w-4xl w-full article-body space-y-16 text-[15.5px] leading-[1.75] text-[#111318]/90">
+      <section id="quickstart" class="space-y-6">
+<div class="kicker">01 / Getting Started</div>
+<h2>Quickstart</h2>
+<p>Run <code>wikipedia-mcp</code> locally with zero configuration:</p>
+<pre><code class="language-bash"># Run with uvx
+uvx mcp-server-wikipedia
+
+# Or clone and run directly
+git clone https://github.com/surendranb/wikipedia-mcp-server.git
+cd wikipedia-mcp-server
+pip install -r requirements.txt
+python server.py
+</code></pre>
+</section>
+<hr>
+<section id="the-challenge" class="space-y-6">
+<div class="kicker">02 / Architecture</div>
+<h2>The Context Waste Challenge</h2>
+<p>LLMs frequently hallucinate historical dates, mathematical definitions, and technical biographies. While Wikipedia contains verified ground truth, dumping raw 15,000-word articles into context windows burns tokens and degrades reasoning.</p>
+<p><strong>Wikipedia MCP provides surgical precision:</strong></p>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+<div class="p-3.5 bg-[#fbfbfa] rounded-lg border border-[#e5e6e4] space-y-1">
+<b>1. Section-Level Extraction</b>
+<p class="text-[#747982] leading-relaxed !mb-0">Retrieve only the requested section (e.g. `Architecture` of Transformer model) with heading hierarchy.</p>
+</div>
+<div class="p-3.5 bg-[#fbfbfa] rounded-lg border border-[#e5e6e4] space-y-1">
+<b>2. 200-Word Lead Summary</b>
+<p class="text-[#747982] leading-relaxed !mb-0">Extract concise article overviews for fast multi-entity verification.</p>
+</div>
+<div class="p-3.5 bg-[#fbfbfa] rounded-lg border border-[#e5e6e4] space-y-1">
+<b>3. Link Graph Traversal</b>
+<p class="text-[#747982] leading-relaxed !mb-0">Follow hyperlinked concept graphs recursively without manual prompt chaining.</p>
+</div>
+<div class="p-3.5 bg-[#fbfbfa] rounded-lg border border-[#e5e6e4] space-y-1">
+<b>4. Local SQLite Cache</b>
+<p class="text-[#747982] leading-relaxed !mb-0">7-day TTL local cache prevents redundant HTTP round-trips for high-frequency queries.</p>
+</div>
+</div>
+</section>
+<hr>
+<section id="agent-setup" class="space-y-6">
+<div class="kicker">03 / Agent Setup</div>
+<h2>Agent Configuration</h2>
+<h3>Claude Desktop</h3>
+<p>Add to <code>claude_desktop_config.json</code>:</p>
+<pre><code class="language-json">{
+  &quot;mcpServers&quot;: {
+    &quot;wikipedia&quot;: {
+      &quot;command&quot;: &quot;uvx&quot;,
+      &quot;args&quot;: [&quot;mcp-server-wikipedia&quot;]
+    }
+  }
+}
+</code></pre>
+<h3>Cursor / Antigravity</h3>
+<p>Add to IDE settings:</p>
+<pre><code class="language-json">{
+  &quot;mcpServers&quot;: {
+    &quot;wikipedia&quot;: {
+      &quot;command&quot;: &quot;python&quot;,
+      &quot;args&quot;: [&quot;/absolute/path/to/wikipedia-mcp-server/server.py&quot;]
+    }
+  }
+}
+</code></pre>
+</section>
+<hr>
+<section id="tools-reference" class="space-y-6">
+<div class="kicker">04 / API & Tools</div>
+<h2>Tool &amp; Parameter Reference</h2>
+<table>
+<thead>
+<tr>
+<th style="text-align:left">Tool Name</th>
+<th style="text-align:left">Parameters</th>
+<th style="text-align:left">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left"><code>get_page</code></td>
+<td style="text-align:left"><code>title</code>, <code>sections</code></td>
+<td style="text-align:left">Retrieves full article or specific section text in structured JSON.</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>get_summary</code></td>
+<td style="text-align:left"><code>title</code></td>
+<td style="text-align:left">Fast 200-word lead extract.</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>search_wikipedia</code></td>
+<td style="text-align:left"><code>query</code>, <code>limit</code></td>
+<td style="text-align:left">Full-text search returning page titles and descriptions.</td>
+</tr>
+<tr>
+<td style="text-align:left"><code>get_links</code></td>
+<td style="text-align:left"><code>title</code>, <code>limit</code></td>
+<td style="text-align:left">Extracts outgoing wiki links from an article.</td>
+</tr>
+</tbody>
+</table>
+</section>
+<hr>
+<section id="section-queries" class="space-y-6">
+<div class="kicker">05 / Example</div>
+<h2>Surgical Section Queries</h2>
+<p>Models can extract exact sections without loading the entire article:</p>
+<pre><code class="language-python">wikipedia.get_page(
+    title=&quot;Transformer (machine learning model)&quot;,
+    sections=[&quot;Architecture&quot;, &quot;Training&quot;]
+)
+</code></pre>
+</section>
+
+    </div>
+  </div>
+
+</article>
+
+<!-- FOOTER -->
+<footer class="border-t border-[#e5e6e4] bg-[#fbfbfa] py-12 mt-24 text-xs text-[#747982] mono">
+  <div class="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+    <div>
+      <span>Part of <a href="https://builditwithai.xyz" class="text-[#315cf5] hover:underline font-semibold">BuildItWithAI Studio</a> by <a href="https://surendranb.com" class="hover:underline">Surendran</a></span>
+    </div>
+    <div class="flex items-center gap-6">
+      <a href="https://github.com/surendranb/wikipedia-mcp-server" class="hover:underline">GitHub</a>
+      <a href="https://www.npmjs.com/package/wikipedia-mcp" class="hover:underline">npm</a>
+      <a href="https://pypi.org/project/mcp-server-wikipedia/" class="hover:underline">PyPI</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
