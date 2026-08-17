@@ -2,12 +2,11 @@
 
 > **Surgical, token-efficient Wikipedia knowledge retrieval MCP server for AI agents with deterministic summary, search, and full-article projection.**
 
-[![PyPI version](https://img.shields.io/pypi/v/mcp-server-wikipedia?label=PyPI&color=blue)](https://pypi.org/project/mcp-server-wikipedia/)
-[![PyPI downloads](https://img.shields.io/pypi/dm/mcp-server-wikipedia?label=PyPI%20downloads&color=blue)](https://pypi.org/project/mcp-server-wikipedia/)
-[![npm version](https://img.shields.io/npm/v/mcp-server-wikipedia?label=npm&color=red)](https://www.npmjs.com/package/mcp-server-wikipedia)
-[![npm downloads](https://img.shields.io/npm/dm/mcp-server-wikipedia?label=npm%20downloads&color=red)](https://www.npmjs.com/package/mcp-server-wikipedia)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Documentation](https://img.shields.io/badge/Docs-wikipedia.builditwithai.xyz-purple)](https://wikipedia.builditwithai.xyz)
+[![CI](https://github.com/surendranb/wikipedia-mcp-server/actions/workflows/ci.yml/badge.svg)](https://github.com/surendranb/wikipedia-mcp-server/actions)
+[![PyPI version](https://img.shields.io/pypi/v/mcp-server-wikipedia.svg?style=flat-square&color=blue)](https://pypi.org/project/mcp-server-wikipedia/)
+[![npm version](https://img.shields.io/npm/v/mcp-server-wikipedia.svg?style=flat-square&color=red)](https://www.npmjs.com/package/mcp-server-wikipedia)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/surendranb/wikipedia-mcp-server/badge)](https://scorecard.dev/viewer/?site=github.com/surendranb/wikipedia-mcp-server)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
 
 🌐 **Live Documentation & Web Portal**: [https://wikipedia.builditwithai.xyz](https://wikipedia.builditwithai.xyz)
 
