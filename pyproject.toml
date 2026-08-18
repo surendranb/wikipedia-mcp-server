@@ -1,6 +1,6 @@
 [project]
 name = "mcp-server-wikipedia"
-version = "0.5.1"
+version = "0.5.2"
 description = "Progressive-retrieval MCP server for Wikipedia"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -38,6 +38,8 @@ Issues = "https://github.com/surendranb/wikipedia-mcp-server/issues"
 Changelog = "https://github.com/surendranb/wikipedia-mcp-server/blob/main/CHANGELOG.md"
 
 [project.scripts]
+mcp-server-wikipedia = "server:main"
+wikipedia-mcp = "server:main"
 wikipedia-mcp-server = "server:main"
 
 [build-system]
