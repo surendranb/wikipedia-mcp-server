@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from server import WikipediaClient, strip_html, title_key
+from server import WikipediaClient, strip_html, title_key, get_toc, get_section
 
 
 class UtilityTests(unittest.TestCase):
@@ -97,6 +97,26 @@ class ClientBehaviorTests(unittest.TestCase):
             result = self.client.get_page("Fallback")
         self.assertEqual(result["title"], "Fallback")
         self.assertEqual(result["text"], "Fallback page body")
+
+    def test_get_toc_missing_page_raises_key_error(self) -> None:
+        payload = {"error": {"code": "missingtitle", "info": "The page you specified doesn't exist."}}
+        with patch.object(self.client, "_get_json", return_value=payload):
+            with self.assertRaises(KeyError):
+                self.client.get_toc("Nonexistent")
+
+    def test_get_toc_tool_missing_page_returns_error_brief(self) -> None:
+        payload = {"error": {"code": "missingtitle", "info": "The page you specified doesn't exist."}}
+        with patch("server.client._get_json", return_value=payload):
+            result = get_toc("Nonexistent")
+            self.assertIn("Page not found", result)
+            self.assertIn("Page 'Nonexistent' does not exist", result)
+
+    def test_get_section_tool_missing_page_returns_error_brief(self) -> None:
+        payload = {"error": {"code": "missingtitle", "info": "The page you specified doesn't exist."}}
+        with patch("server.client._get_json", return_value=payload):
+            result = get_section("Nonexistent", "0")
+            self.assertIn("Page not found", result)
+            self.assertIn("Page 'Nonexistent' does not exist", result)
 
 
 if __name__ == "__main__":

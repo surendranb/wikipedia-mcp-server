@@ -8,6 +8,8 @@ import functools
 import inspect
 import json
 import re
+import signal
+import sys
 import time
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -147,6 +149,15 @@ class WikipediaClient:
                 "format": "json",
             },
         )
+        if "error" in payload:
+            err = payload["error"]
+            code = err.get("code", "")
+            info = err.get("info", "Unknown error")
+            if code == "missingtitle":
+                raise KeyError(f"Page '{title}' does not exist")
+            raise RuntimeError(f"Failed to fetch TOC for '{title}': {info}")
+        if "parse" not in payload:
+            raise KeyError(f"Page '{title}' does not exist")
         raw_sections = payload.get("parse", {}).get("sections", [])
         sections = [{"index": "0", "line": "Introduction", "anchor": "Introduction"}]
         for section in raw_sections:
@@ -173,6 +184,13 @@ class WikipediaClient:
         if section_index != "0":
             params["section"] = section_index
         payload = self._get_json(self.ACTION_API, params=params)
+        if "error" in payload:
+            err = payload["error"]
+            code = err.get("code", "")
+            info = err.get("info", "Unknown error")
+            if code == "missingtitle":
+                raise KeyError(f"Page '{title}' does not exist")
+            raise RuntimeError(f"Failed to fetch section for '{title}': {info}")
         html = payload.get("parse", {}).get("text", {}).get("*", "")
         return {
             "title": title,
@@ -197,6 +215,15 @@ class WikipediaClient:
                 self.ACTION_API,
                 params={"action": "parse", "page": title, "prop": "text", "format": "json"},
             )
+            if "error" in payload:
+                err = payload["error"]
+                code = err.get("code", "")
+                info = err.get("info", "Unknown error")
+                if code == "missingtitle":
+                    raise KeyError(f"Page '{title}' does not exist")
+                raise RuntimeError(f"Action API error: {info}")
+            if "parse" not in payload:
+                raise RuntimeError("Action API response missing parse payload")
             html = payload.get("parse", {}).get("text", {}).get("*", "")
             return {"title": title, "text": strip_html(html)}
         except Exception as exc:
@@ -492,15 +519,53 @@ _TOOL_COUNTS: dict[str, int] = {}
 _FIRST_CALL = [True]
 
 
+_EXIT_REASON = "clean"
+_EXIT_EXCEPTION = None
+
+
+def _capture_excepthook(exc_type, exc_value, exc_traceback):
+    global _EXIT_REASON, _EXIT_EXCEPTION
+    _EXIT_REASON = "exception"
+    _EXIT_EXCEPTION = exc_type.__name__ if exc_type else "UnknownException"
+    if _original_excepthook and callable(_original_excepthook):
+        _original_excepthook(exc_type, exc_value, exc_traceback)
+
+
+_original_excepthook = getattr(sys, "excepthook", None)
+sys.excepthook = _capture_excepthook
+
+_original_signals = {}
+
+
+def _capture_signal(sig, frame):
+    global _EXIT_REASON
+    _EXIT_REASON = "signal"
+    orig = _original_signals.get(sig)
+    if callable(orig):
+        orig(sig, frame)
+    else:
+        sys.exit(128 + sig)
+
+
+try:
+    for s in (signal.SIGINT, signal.SIGTERM):
+        _original_signals[s] = signal.getsignal(s)
+        signal.signal(s, _capture_signal)
+except (ValueError, AttributeError):
+    pass
+
+
 def _send_session_end() -> None:
-    if not _TOOL_SEQUENCE:
-        return
-    telemetry.send_telemetry("session_end", {
+    payload = {
         "tool_sequence": list(_TOOL_SEQUENCE),
         "tool_counts": dict(_TOOL_COUNTS),
         "calls_total": len(_TOOL_SEQUENCE),
         "session_duration_s": int(time.time() - _BOOT_TS),
-    })
+        "exit_reason": _EXIT_REASON,
+    }
+    if _EXIT_EXCEPTION:
+        payload["exit_exception"] = _EXIT_EXCEPTION
+    telemetry.send_telemetry("session_end", payload)
 
 
 atexit.register(_send_session_end)
@@ -569,6 +634,9 @@ def get_toc(title: str) -> str:
         return json.dumps({"error": "title must be a string"}, ensure_ascii=False, indent=2)
     try:
         return json.dumps(client.get_toc(title), ensure_ascii=False, indent=2)
+    except KeyError as e:
+        detail = f"Page '{title}' does not exist."
+        return _brief_error(_missing_page_brief(detail), BRIEF_MISSING_PAGE_VERSION)
     except Exception as e:
         return _brief_error(_api_failure_brief(f"Failed to get TOC: {e}."), BRIEF_API_FAILURE_VERSION)
 
@@ -581,6 +649,9 @@ def get_section(title: str, section: str) -> str:
         return json.dumps({"error": "title and section must be strings"}, ensure_ascii=False, indent=2)
     try:
         return json.dumps(client.get_section(title, section), ensure_ascii=False, indent=2)
+    except KeyError as e:
+        detail = f"Page '{title}' does not exist."
+        return _brief_error(_missing_page_brief(detail), BRIEF_MISSING_PAGE_VERSION)
     except ValueError as e:
         # Section-name mismatch: existing, already-actionable text — unchanged.
         return json.dumps({"error": f"Failed to get section: {e}"}, ensure_ascii=False, indent=2)

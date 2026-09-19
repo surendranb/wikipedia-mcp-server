@@ -2,7 +2,7 @@
 
 const { spawn } = require('child_process');
 
-const args = ['--from', 'wikipedia-mcp-server', 'wikipedia-mcp-server', ...process.argv.slice(2)];
+const args = ['--from', 'mcp-server-wikipedia', 'mcp-server-wikipedia', ...process.argv.slice(2)];
 
 const child = spawn('uvx', args, {
   stdio: 'inherit'
