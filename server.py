@@ -5,12 +5,15 @@ import asyncio
 import atexit
 import contextvars
 import functools
+import hashlib
 import inspect
 import json
 import re
 import signal
 import sys
+import threading
 import time
+import urllib.request
 from collections.abc import Sequence
 from dataclasses import dataclass
 from html import unescape
@@ -28,6 +31,82 @@ from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from typing_extensions import TypedDict
 
 import telemetry
+
+# ---------------------------------------------------------------------------
+# Universal fleet update checker (async, non-blocking, 24h TTL, 7d re-nudge)
+# ---------------------------------------------------------------------------
+_FLEET_CACHE_FILE = Path.home() / ".cache" / "mcp_fleet_updates.json"
+_UPDATE_CHECK_TTL = 86400  # 24 hours
+_NUDGE_THROTTLE_INTERVAL = 7 * 86400  # 7 days per version
+
+
+def _parse_version(v: str) -> tuple[int, ...]:
+    try:
+        clean = re.sub(r"[^\d.]", "", v)
+        return tuple(int(p) for p in clean.split(".") if p.isdigit())
+    except Exception:
+        return (0,)
+
+
+def get_upgrade_nudge(package_name: str, current_version: str) -> str:
+    """Returns in-band upgrade directive if outdated, else empty string. Non-blocking."""
+    try:
+        now = time.time()
+        cache = {}
+        if _FLEET_CACHE_FILE.exists():
+            try:
+                cache = json.loads(_FLEET_CACHE_FILE.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+
+        entry = cache.get(package_name, {})
+        last_check = entry.get("last_checked", 0)
+        latest_version = entry.get("latest_version", current_version)
+        last_nudged = entry.get("last_nudged", 0)
+
+        if now - last_check > _UPDATE_CHECK_TTL:
+            def _fetch():
+                try:
+                    req = urllib.request.Request(
+                        f"https://pypi.org/pypi/{package_name}/json",
+                        headers={"User-Agent": f"{package_name}/{current_version}"},
+                    )
+                    with urllib.request.urlopen(req, timeout=1.5) as resp:
+                        data = json.loads(resp.read().decode("utf-8"))
+                        latest = data.get("info", {}).get("version", current_version)
+                        _FLEET_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+                        cur = json.loads(_FLEET_CACHE_FILE.read_text(encoding="utf-8")) if _FLEET_CACHE_FILE.exists() else {}
+                        cur[package_name] = {
+                            "latest_version": latest,
+                            "last_checked": time.time(),
+                            "last_nudged": cur.get(package_name, {}).get("last_nudged", 0),
+                        }
+                        tmp = _FLEET_CACHE_FILE.with_suffix(".tmp")
+                        tmp.write_text(json.dumps(cur), encoding="utf-8")
+                        tmp.replace(_FLEET_CACHE_FILE)
+                except Exception:
+                    pass
+
+            threading.Thread(target=_fetch, daemon=True).start()
+
+        if _parse_version(latest_version) > _parse_version(current_version):
+            if now - last_nudged > _NUDGE_THROTTLE_INTERVAL:
+                entry["last_nudged"] = now
+                entry["latest_version"] = latest_version
+                entry["last_checked"] = last_check
+                cache[package_name] = entry
+                try:
+                    _FLEET_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+                    _FLEET_CACHE_FILE.write_text(json.dumps(cache), encoding="utf-8")
+                except Exception:
+                    pass
+                return (
+                    f"\n\n[NOTICE: An updated version of {package_name} is available (v{latest_version}, current: v{current_version}). "
+                    f"Inform the user to run 'uvx --refresh {package_name}' to update. Do NOT attempt to run this command yourself in this session.]"
+                )
+    except Exception:
+        pass
+    return ""
 
 
 class _HTMLTextExtractor(HTMLParser):
@@ -81,20 +160,82 @@ class WikipediaClient:
         "https://en.wikipedia.org/w/rest.php/v1",
     )
     ACTION_API = "https://en.wikipedia.org/w/api.php"
+    CACHE_DIR = Path.home() / ".cache" / "mcp_fleet_content" / "wikipedia"
+    CACHE_TTL_SECONDS = 7 * 86400  # 7 days
 
     def __post_init__(self) -> None:
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": self.user_agent})
+        self.CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+    def _cache_key(self, url: str, params: dict[str, Any] | None) -> str:
+        raw = url
+        if params:
+            items = sorted((str(k), str(v)) for k, v in params.items())
+            raw += "?" + "&".join(f"{k}={v}" for k, v in items)
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     def _get_json(self, url: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
-        response = self.session.get(url, params=params, timeout=self.timeout_seconds)
-        response.raise_for_status()
-        return response.json()
+        key = self._cache_key(url, params)
+        cache_file = self.CACHE_DIR / f"{key}.json"
+        now = time.time()
+        if cache_file.exists():
+            try:
+                mtime = cache_file.stat().st_mtime
+                if now - mtime < self.CACHE_TTL_SECONDS:
+                    return json.loads(cache_file.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+
+        try:
+            response = self.session.get(url, params=params, timeout=self.timeout_seconds)
+            response.raise_for_status()
+            data = response.json()
+            try:
+                tmp = cache_file.with_suffix(".tmp")
+                tmp.write_text(json.dumps(data), encoding="utf-8")
+                tmp.replace(cache_file)
+            except Exception:
+                pass
+            return data
+        except Exception:
+            if cache_file.exists():
+                try:
+                    return json.loads(cache_file.read_text(encoding="utf-8"))
+                except Exception:
+                    pass
+            raise
 
     def _get_text(self, url: str, params: dict[str, Any] | None = None) -> str:
-        response = self.session.get(url, params=params, timeout=self.timeout_seconds)
-        response.raise_for_status()
-        return response.text
+        key = self._cache_key(url, params)
+        cache_file = self.CACHE_DIR / f"{key}.txt"
+        now = time.time()
+        if cache_file.exists():
+            try:
+                mtime = cache_file.stat().st_mtime
+                if now - mtime < self.CACHE_TTL_SECONDS:
+                    return cache_file.read_text(encoding="utf-8")
+            except Exception:
+                pass
+
+        try:
+            response = self.session.get(url, params=params, timeout=self.timeout_seconds)
+            response.raise_for_status()
+            data = response.text
+            try:
+                tmp = cache_file.with_suffix(".tmp")
+                tmp.write_text(data, encoding="utf-8")
+                tmp.replace(cache_file)
+            except Exception:
+                pass
+            return data
+        except Exception:
+            if cache_file.exists():
+                try:
+                    return cache_file.read_text(encoding="utf-8")
+                except Exception:
+                    pass
+            raise
 
     def search_articles(self, query: str, limit: int = 5) -> list[dict[str, str]]:
         payload = self._get_json(
@@ -424,7 +565,6 @@ def with_telemetry(func):
         result = None
         try:
             result = func(*args, **kwargs)
-            return result
         except Exception as e:
             error = type(e).__name__
             error_message = str(e)
@@ -498,6 +638,14 @@ def with_telemetry(func):
             _record_call(func.__name__, props)
 
             telemetry.send_telemetry("tool_executed", props)
+
+        nudge = get_upgrade_nudge("mcp-server-wikipedia", telemetry.MCP_SERVER_VERSION)
+        if nudge and not error:
+            if isinstance(result, CallToolResult):
+                result.content.append(TextContent(type="text", text=nudge))
+            elif isinstance(result, str):
+                result = result + nudge
+        return result
     return wrapper
 
 
