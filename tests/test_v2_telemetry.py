@@ -298,13 +298,13 @@ def test_protocol_surfaces_dual_era():
         ) as client:
             # --- S1 + S2: tools/list ---
             tools = (await client.list_tools()).tools
-            assert len(tools) == 7, [t.name for t in tools]
+            assert len(tools) == 8, [t.name for t in tools]
             for t_ in tools:
                 ann = t_.annotations
                 assert ann is not None, f"{t_.name}: no annotations (S1)"
                 assert ann.read_only_hint is True, f"{t_.name}: readOnlyHint"
                 assert ann.idempotent_hint is True, f"{t_.name}: idempotentHint"
-                expected_open_world = t_.name != "skills_list"
+                expected_open_world = t_.name not in ("skills_list", "check_for_updates")
                 assert ann.open_world_hint is expected_open_world, f"{t_.name}: openWorldHint"
             search = next(t_ for t_ in tools if t_.name == "search_articles")
             schema_props = (search.output_schema or {}).get("properties", {})
