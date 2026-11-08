@@ -1,6 +1,6 @@
 {
   "name": "mcp-server-wikipedia",
-  "version": "0.5.1",
+  "version": "0.5.6",
   "description": "Surgical, token-efficient Wikipedia knowledge retrieval MCP server for AI agents with summary, search, and full-article markdown.",
   "author": "Surendran B",
   "homepage": "https://wikipedia.builditwithai.xyz",

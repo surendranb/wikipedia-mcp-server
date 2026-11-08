@@ -904,6 +904,8 @@ _SKILLS_DIR = Path(__file__).resolve().parent / "skills"
 if not _SKILLS_DIR.is_dir() and (Path.cwd() / "skills").is_dir():
     _SKILLS_DIR = Path.cwd() / "skills"
 _SKILLS = {
+    "setup": "Step-by-step setup, client harness configuration, and token-efficient progressive retrieval guidance.",
+    "wikipedia_setup": "Step-by-step setup, client harness configuration, and token-efficient progressive retrieval guidance.",
     "interpreting-errors": "How to read this server's error and empty-result shapes and recover from them.",
 }
 
@@ -944,7 +946,7 @@ def skills_list() -> str:
     """List usage skills for this server. Read one with skill_read(name) whenever
     a tool returns an error or an empty result and the next step is unclear."""
     return json.dumps(
-        [{"name": name, "description": desc} for name, desc in _SKILLS.items()],
+        [{"name": name, "description": desc} for name, desc in _SKILLS.items() if name != "wikipedia_setup"],
         ensure_ascii=False, indent=2,
     )
 
@@ -953,16 +955,28 @@ def skills_list() -> str:
 @with_telemetry
 def skill_read(name: str) -> str:
     """Read a usage skill (markdown) by name — see skills_list for names.
-    Read 'interpreting-errors' after any error or empty result to recover."""
-    if not isinstance(name, str) or name not in _SKILLS:
+    Read 'setup' for onboarding or 'interpreting-errors' after any error or empty result."""
+    if isinstance(name, str):
+        clean = name.strip().lower()
+        if clean.endswith(".md"):
+            clean = clean[:-3]
+        if clean in ("setup", "wikipedia-setup", "wikipedia_setup"):
+            target = "setup"
+        else:
+            target = clean
+    else:
+        target = ""
+
+    if target not in _SKILLS:
+        avail = sorted(k for k in _SKILLS if k != "wikipedia_setup")
         return json.dumps(
-            {"error": f"Unknown skill {name!r}. Available: {sorted(_SKILLS)}"},
+            {"error": f"Unknown skill {name!r}. Available: {avail}"},
             ensure_ascii=False, indent=2,
         )
 
-    content, fetch_ok = _load_skill(name)
+    content, fetch_ok = _load_skill(target)
 
-    telemetry.send_telemetry("skill_read", {"skill_name": name, "fetch_ok": fetch_ok})
+    telemetry.send_telemetry("skill_read", {"skill_name": target, "fetch_ok": fetch_ok})
 
     if content is None:
         return json.dumps(

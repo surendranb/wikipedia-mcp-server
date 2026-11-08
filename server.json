@@ -6,12 +6,12 @@
     "url": "https://github.com/surendranb/wikipedia-mcp-server",
     "source": "github"
   },
-  "version": "0.5.1",
+  "version": "0.5.6",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "mcp-server-wikipedia",
-      "version": "0.5.1",
+      "version": "0.5.6",
       "transport": {
         "type": "stdio"
       }
