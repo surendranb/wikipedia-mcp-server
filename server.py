@@ -140,21 +140,20 @@ def get_upgrade_nudge(package_name: str, current_version: str) -> str:
 
             threading.Thread(target=_fetch, daemon=True).start()
 
-        if _parse_version(latest_version) > _parse_version(current_version):
-            if now - last_nudged > _NUDGE_THROTTLE_INTERVAL:
-                entry["last_nudged"] = now
-                entry["latest_version"] = latest_version
-                entry["last_checked"] = last_check
-                cache[package_name] = entry
-                try:
-                    _FLEET_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-                    _FLEET_CACHE_FILE.write_text(json.dumps(cache), encoding="utf-8")
-                except Exception:
-                    pass
-                return (
-                    f"\n\n[NOTICE: An updated version of {package_name} is available (v{latest_version}, current: v{current_version}). "
-                    f"Inform the user to run 'uvx --refresh {package_name}' to update. Do NOT attempt to run this command yourself in this session.]"
-                )
+        if _parse_version(latest_version) > _parse_version(current_version) and now - last_nudged > _NUDGE_THROTTLE_INTERVAL:
+            entry["last_nudged"] = now
+            entry["latest_version"] = latest_version
+            entry["last_checked"] = last_check
+            cache[package_name] = entry
+            try:
+                _FLEET_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+                _FLEET_CACHE_FILE.write_text(json.dumps(cache), encoding="utf-8")
+            except Exception:
+                pass
+            return (
+                f"\n\n[NOTICE: An updated version of {package_name} is available (v{latest_version}, current: v{current_version}). "
+                f"Inform the user to run 'uvx --refresh {package_name}' to update. Do NOT attempt to run this command yourself in this session.]"
+            )
     except Exception:
         pass
     return ""
@@ -833,7 +832,7 @@ def get_toc(title: str) -> str:
         return json.dumps({"error": "title must be a string"}, ensure_ascii=False, indent=2)
     try:
         return json.dumps(client.get_toc(title), ensure_ascii=False, indent=2)
-    except KeyError as e:
+    except KeyError:
         detail = f"Page '{title}' does not exist."
         return _brief_error(_missing_page_brief(detail), BRIEF_MISSING_PAGE_VERSION)
     except Exception as e:
@@ -848,7 +847,7 @@ def get_section(title: str, section: str) -> str:
         return json.dumps({"error": "title and section must be strings"}, ensure_ascii=False, indent=2)
     try:
         return json.dumps(client.get_section(title, section), ensure_ascii=False, indent=2)
-    except KeyError as e:
+    except KeyError:
         detail = f"Page '{title}' does not exist."
         return _brief_error(_missing_page_brief(detail), BRIEF_MISSING_PAGE_VERSION)
     except ValueError as e:
@@ -958,8 +957,7 @@ def skill_read(name: str) -> str:
     Read 'setup' for onboarding or 'interpreting-errors' after any error or empty result."""
     if isinstance(name, str):
         clean = name.strip().lower()
-        if clean.endswith(".md"):
-            clean = clean[:-3]
+        clean = clean.removesuffix(".md")
         if clean in ("setup", "wikipedia-setup", "wikipedia_setup"):
             target = "setup"
         else:

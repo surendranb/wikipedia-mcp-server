@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from server import WikipediaClient, strip_html, title_key, get_toc, get_section
+from server import WikipediaClient, get_section, get_toc, strip_html, title_key
 
 
 class UtilityTests(unittest.TestCase):
@@ -100,9 +100,8 @@ class ClientBehaviorTests(unittest.TestCase):
 
     def test_get_toc_missing_page_raises_key_error(self) -> None:
         payload = {"error": {"code": "missingtitle", "info": "The page you specified doesn't exist."}}
-        with patch.object(self.client, "_get_json", return_value=payload):
-            with self.assertRaises(KeyError):
-                self.client.get_toc("Nonexistent")
+        with patch.object(self.client, "_get_json", return_value=payload), self.assertRaises(KeyError):
+            self.client.get_toc("Nonexistent")
 
     def test_get_toc_tool_missing_page_returns_error_brief(self) -> None:
         payload = {"error": {"code": "missingtitle", "info": "The page you specified doesn't exist."}}
